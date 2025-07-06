@@ -16,6 +16,7 @@ VisualTutor is a conversational AI agent that answers questions based on user-pr
 
 ### Technical Stack Requirements
 - **LLM**: Gemini 2.5 Flash (minimum 1M context window)
+- **STT**: ElevenLabs Speech-to-Text API for voice input transcription
 - **TTS**: ElevenLabs lowest latency API
 - **Response Format**: Structured JSON with outline and full text
 - **Knowledge Base**: Full text provided with each prompt (no RAG), use caching for cost efficiency
@@ -26,6 +27,8 @@ VisualTutor is a conversational AI agent that answers questions based on user-pr
 - Must return structured JSON containing both outline and full text response
 - Outline should be HTML `<ul>` list format without highlighting
 - Full text may include markdown formatting that must be rendered to HTML
+- AI responses derived from uploaded knowledge base when possible
+- Must state when using general LLM knowledge: "[topic] is not discussed in [source], but based on my general knowledge..."
 
 ### Chat Interface Features
 - Keyword extraction from outline for highlighting in full text
@@ -35,6 +38,7 @@ VisualTutor is a conversational AI agent that answers questions based on user-pr
 
 ### Voice Processing
 - "Hold-to-speak" microphone button implementation
+- ElevenLabs Speech-to-Text API for accurate voice transcription
 - Graceful handling of long responses that may exceed TTS limits
 - Automatic audio playback after response generation
 
