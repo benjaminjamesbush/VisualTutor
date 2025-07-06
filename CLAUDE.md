@@ -5,6 +5,8 @@ This file contains critical instructions you must follow when working with code 
 ## Claude Code Rules
 
 - **Always push after commit**: When making git commits, you MUST immediately follow with `git push` in the same response to ensure changes are reflected on GitHub
+- **Non-blocking server execution**: When starting Node.js servers or long-running processes, ALWAYS use `nohup command > logfile.log 2>&1 &` to run in background without blocking the terminal session
+- **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
 
 ## Project Overview
 
