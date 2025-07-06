@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file contains critical instructions you must follow when working with code in this repository.
+
+## Claude Code Rules
+
+- **Always push after commit**: When making git commits, you MUST immediately follow with `git push` in the same response to ensure changes are reflected on GitHub
 
 ## Project Overview
 
