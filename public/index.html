@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisualTutor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>VisualTutor</h1>
+            <p>Your AI-powered conversational learning assistant</p>
+        </header>
+
+        <div id="onboarding" class="onboarding-section">
+            <div class="upload-area">
+                <h2>Upload Your Knowledge Base</h2>
+                <p>Upload a plain text file (.txt) that will serve as your custom knowledge base.</p>
+                <input type="file" id="knowledgeBaseFile" accept=".txt" />
+                <button id="uploadBtn" class="primary-btn">Upload Knowledge Base</button>
+                <div id="uploadStatus" class="status-message"></div>
+            </div>
+        </div>
+
+        <div id="chatInterface" class="chat-interface hidden">
+            <div class="chat-container">
+                <div id="chatHistory" class="chat-history"></div>
+                
+                <div class="input-section">
+                    <div class="voice-input">
+                        <button id="micBtn" class="mic-button">
+                            <span class="mic-icon">🎤</span>
+                            <span class="mic-text">Hold to Speak</span>
+                        </button>
+                        <div id="recordingStatus" class="recording-status"></div>
+                    </div>
+                    
+                    <div class="text-input">
+                        <input type="text" id="textInput" placeholder="Or type your question here..." />
+                        <button id="sendBtn" class="send-btn">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
