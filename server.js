@@ -3,6 +3,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const WebSocket = require('ws');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 require('dotenv').config();
 
@@ -124,6 +125,103 @@ app.post('/api/text-to-speech-stream', async (req, res) => {
   } catch (error) {
     console.error('Error streaming text to speech:', error);
     res.status(500).json({ error: 'Failed to stream text to speech: ' + error.message });
+  }
+});
+
+// WebSocket TTS endpoint for real-time streaming
+app.post('/api/text-to-speech-websocket', async (req, res) => {
+  try {
+    const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    // Connect to ElevenLabs WebSocket
+    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_flash_v2_5&enable_logging=true`;
+    const ws = new WebSocket(wsUrl, {
+      headers: {
+        'xi-api-key': process.env.ELEVENLABS_API_KEY
+      }
+    });
+
+    // Set headers for streaming response
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+
+    ws.on('open', () => {
+      console.log('WebSocket connected to ElevenLabs');
+      
+      // Send initial configuration (without auto_mode for manual control)
+      const config = {
+        text: " ",  // Space to initialize
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.5
+        },
+        generation_config: {
+          chunk_length_schedule: [120, 160, 250, 400] // Manual chunking schedule
+        }
+      };
+      
+      ws.send(JSON.stringify(config));
+      
+      // Send the actual text
+      ws.send(JSON.stringify({ text: text }));
+      
+      // Send empty string to signal end
+      ws.send(JSON.stringify({ text: "" }));
+    });
+
+    ws.on('message', (data) => {
+      try {
+        const response = JSON.parse(data.toString());
+        
+        if (response.audio) {
+          // Convert base64 audio to buffer and stream to client
+          const audioBuffer = Buffer.from(response.audio, 'base64');
+          res.write(audioBuffer);
+        }
+        
+        if (response.isFinal) {
+          console.log('WebSocket TTS generation complete');
+          res.end();
+          ws.close();
+        }
+      } catch (parseError) {
+        console.error('Error parsing WebSocket message:', parseError);
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'WebSocket error: ' + error.message });
+      }
+      ws.close();
+    });
+
+    ws.on('close', () => {
+      console.log('WebSocket connection closed');
+      if (!res.finished) {
+        res.end();
+      }
+    });
+
+    // Handle client disconnect
+    req.on('close', () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    });
+
+  } catch (error) {
+    console.error('Error setting up WebSocket TTS:', error);
+    res.status(500).json({ error: 'Failed to set up WebSocket TTS: ' + error.message });
   }
 });
 

@@ -7,6 +7,7 @@ This file contains critical instructions you must follow when working with code 
 - **Always push after commit**: When making git commits, you MUST immediately follow with `git push` in the same response to ensure changes are reflected on GitHub
 - **Non-blocking server execution**: When starting Node.js servers or long-running processes, ALWAYS use `nohup command > logfile.log 2>&1 &` to run in background without blocking the terminal session
 - **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
+- **Follow through on checks**: When you say "let me check" or "I'll check", you MUST immediately perform the actual check using available tools. Never say you will check something without actually doing it in the same response.
 
 ## Project Overview
 
