@@ -105,11 +105,10 @@
         <h1>🎙️ ElevenLabs TTS Test - Flash v2.5 (Lowest Latency) 🚀</h1>
         
         <div class="model-info">
-            <h3>Model: Flash v2.5</h3>
+            <h3>TTS Model: Flash v2.5</h3>
             <p><strong>Latency:</strong> Ultra-low 75ms</p>
             <p><strong>Languages:</strong> 32 languages supported</p>
             <p><strong>Use Case:</strong> Optimized for real-time conversational AI</p>
-            <p style="background: #28a745; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;">✨ Auto-refresh is working! This message appeared without manual refresh.</p>
         </div>
 
         <div class="input-group">
@@ -137,6 +136,42 @@
         <div class="audio-controls" id="audioControls" style="display: none;">
             <h3>Generated Audio:</h3>
             <audio id="audioPlayer" controls></audio>
+        </div>
+
+        <hr style="margin: 40px 0;">
+
+        <!-- Speech-to-Text Section -->
+        <h2 style="text-align: center; margin-bottom: 30px;">🎤 Speech-to-Text Test</h2>
+        
+        <div class="model-info">
+            <h3>STT Model: ElevenLabs Speech Recognition</h3>
+            <p><strong>Features:</strong> Real-time microphone recording</p>
+            <p><strong>Format:</strong> WebM audio capture</p>
+            <p><strong>Use Case:</strong> Voice input and transcription</p>
+        </div>
+
+        <div class="input-group" style="text-align: center;">
+            <button id="recordButton" onclick="toggleRecording()" style="background: #dc3545; padding: 20px 40px; font-size: 20px; border-radius: 10px;">
+                🎙️ Start Recording
+            </button>
+            <p id="recordingStatus" style="margin-top: 10px; font-style: italic; color: #666;">Click to start recording</p>
+        </div>
+
+        <div class="input-group" style="display: none;" id="modelSelectGroup">
+            <label for="sttModel">STT Model:</label>
+            <select id="sttModel" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                <option value="scribe_v1" selected>Scribe v1 (Production - 96.7% accuracy)</option>
+                <option value="scribe_v1_experimental">Scribe v1 Experimental (Testing features)</option>
+            </select>
+        </div>
+
+        <button onclick="toggleModelInput()">Toggle Advanced Options</button>
+
+        <div id="sttStatus" class="status"></div>
+
+        <div class="input-group" id="transcriptionResult" style="display: none;">
+            <label for="transcription">Transcription Result:</label>
+            <textarea id="transcription" readonly style="height: 150px; background: #f8f9fa;"></textarea>
         </div>
     </div>
 
@@ -237,6 +272,121 @@
 
         // Auto-focus on text input
         document.getElementById('textInput').focus();
+
+        // Speech-to-Text functions
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        function showSTTStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('sttStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        function hideSTTStatus() {
+            const statusDiv = document.getElementById('sttStatus');
+            statusDiv.style.display = 'none';
+        }
+
+        function toggleModelInput() {
+            const modelGroup = document.getElementById('modelSelectGroup');
+            modelGroup.style.display = modelGroup.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                await stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudioToServer(audioBlob);
+                    
+                    // Stop all tracks to release microphone
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                
+                // Update UI
+                const recordButton = document.getElementById('recordButton');
+                recordButton.textContent = '⏹️ Stop Recording';
+                recordButton.style.background = '#28a745';
+                document.getElementById('recordingStatus').textContent = 'Recording... Speak now!';
+                
+                showSTTStatus('Recording audio...', 'info');
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                showSTTStatus('Error: Could not access microphone. Please ensure microphone permissions are granted.', 'error');
+            }
+        }
+
+        async function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                // Update UI
+                const recordButton = document.getElementById('recordButton');
+                recordButton.textContent = '🎙️ Start Recording';
+                recordButton.style.background = '#dc3545';
+                document.getElementById('recordingStatus').textContent = 'Processing audio...';
+            }
+        }
+
+        async function sendAudioToServer(audioBlob) {
+            const modelId = document.getElementById('sttModel').value;
+            showSTTStatus('Converting speech to text...', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                formData.append('modelId', modelId || 'scribe_v1');
+
+                const response = await fetch('/api/speech-to-text', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API Error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                
+                // Display transcription
+                document.getElementById('transcription').value = data.text || 'No transcription available';
+                document.getElementById('transcriptionResult').style.display = 'block';
+                document.getElementById('recordingStatus').textContent = 'Click to start recording';
+                showSTTStatus('Speech converted to text successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error converting speech to text:', error);
+                document.getElementById('recordingStatus').textContent = 'Click to start recording';
+                showSTTStatus(`Error: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

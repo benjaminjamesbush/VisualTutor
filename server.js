@@ -89,6 +89,46 @@ app.post('/api/text-to-speech', async (req, res) => {
   }
 });
 
+// Speech-to-Text endpoint
+app.post('/api/speech-to-text', upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Audio file is required' });
+    }
+
+    console.log('Received modelId from client:', req.body.modelId);
+    const modelId = req.body.modelId || 'scribe_v1'; // Default to scribe_v1 - the main production STT model
+    console.log('Using modelId:', modelId);
+
+    // Create a ReadStream from the uploaded file
+    const audioStream = fs.createReadStream(req.file.path);
+
+    // Call ElevenLabs STT API with file stream
+    const result = await elevenlabs.speechToText.convert({
+      file: audioStream,
+      modelId: modelId  // Try camelCase instead of snake_case
+    });
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      text: result.text,
+      chunks: result.chunks
+    });
+
+  } catch (error) {
+    console.error('Error converting speech to text:', error);
+    
+    // Clean up uploaded file in case of error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(500).json({ error: 'Failed to convert speech to text: ' + error.message });
+  }
+});
+
 app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
