@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const WebSocket = require('ws');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
+const { createClient } = require('@deepgram/sdk');
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,9 @@ const PORT = process.env.PORT || 3000;
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY
 });
+
+// Initialize Deepgram client
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 app.use(cors());
 app.use(express.json());
@@ -151,33 +155,18 @@ app.post('/api/text-to-speech', async (req, res) => {
   }
 });
 
-// Speech-to-Text endpoint
+// Speech-to-Text endpoint - Deepgram implementation pending
 app.post('/api/speech-to-text', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Audio file is required' });
     }
 
-    console.log('Received modelId from client:', req.body.modelId);
-    const modelId = req.body.modelId || 'scribe_v1'; // Default to scribe_v1 - the main production STT model
-    console.log('Using modelId:', modelId);
-
-    // Create a ReadStream from the uploaded file
-    const audioStream = fs.createReadStream(req.file.path);
-
-    // Call ElevenLabs STT API with file stream
-    const result = await elevenlabs.speechToText.convert({
-      file: audioStream,
-      modelId: modelId  // Try camelCase instead of snake_case
-    });
-
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
 
-    res.json({
-      text: result.text,
-      chunks: result.chunks
-    });
+    // Deepgram STT implementation will be added here
+    res.status(501).json({ error: 'Deepgram STT implementation pending' });
 
   } catch (error) {
     console.error('Error converting speech to text:', error);
@@ -210,6 +199,37 @@ app.post('/chat', async (req, res) => {
   } catch (error) {
     console.error('Chat error:', error);
     res.status(500).json({ error: 'Internal server error: ' + error.message });
+  }
+});
+
+// Deepgram authentication endpoint for temporary tokens
+app.get('/api/deepgram/authenticate', async (req, res) => {
+  try {
+    // For development, we can return the API key directly
+    // In production, you should use Deepgram's createTemporaryKey API
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+      return res.json({
+        key: process.env.DEEPGRAM_API_KEY
+      });
+    }
+
+    // For production, generate a temporary key with restricted scope
+    const { result, error } = await deepgram.auth.createKey({
+      comment: 'Temporary key for browser STT',
+      scopes: ['usage:read', 'project:read', 'keys:read'],
+      expirationDate: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    res.json({
+      key: result.key
+    });
+  } catch (error) {
+    console.error('Error creating Deepgram authentication token:', error);
+    res.status(500).json({ error: 'Failed to create authentication token: ' + error.message });
   }
 });
 

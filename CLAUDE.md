@@ -8,6 +8,7 @@ This file contains critical instructions you must follow when working with code 
 - **Non-blocking server execution**: When starting Node.js servers or long-running processes, ALWAYS use `nohup command > logfile.log 2>&1 &` to run in background without blocking the terminal session
 - **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
 - **Follow through on checks**: When you say "let me check" or "I'll check", you MUST immediately perform the actual check using available tools. Never say you will check something without actually doing it in the same response.
+- **Browser-sync for development**: When providing local development URLs, always use port 3001 (not 3000) as browser-sync proxies the Express server and adds auto-refresh functionality. Example: http://localhost:3001/test-page.html
 
 ## Project Overview
 
@@ -23,7 +24,7 @@ VisualTutor is a conversational AI agent that answers questions based on user-pr
 
 ### Technical Stack Requirements
 - **LLM**: Gemini 2.5 Flash (minimum 1M context window)
-- **STT**: ElevenLabs Speech-to-Text API for voice input transcription
+- **STT**: Deepgram nova-3-medical model for accurate voice transcription
 - **TTS**: ElevenLabs lowest latency API
 - **Response Format**: Structured JSON with outline and full text
 - **Knowledge Base**: Full text provided with each prompt (no RAG), use caching for cost efficiency
@@ -45,7 +46,7 @@ VisualTutor is a conversational AI agent that answers questions based on user-pr
 
 ### Voice Processing
 - "Hold-to-speak" microphone button implementation
-- ElevenLabs Speech-to-Text API for accurate voice transcription
+- Deepgram nova-3-medical model for accurate voice transcription
 - Graceful handling of long responses that may exceed TTS limits
 - Automatic audio playback after response generation
 
