@@ -19,11 +19,7 @@
     <textarea id="textInput" rows="5" placeholder="Enter text...">Welcome to our advanced text-to-speech demonstration system. This technology represents the cutting edge of artificial intelligence voice synthesis, capable of transforming written words into natural-sounding human speech with remarkable clarity and emotional nuance.
 
 Our streaming implementation significantly reduces latency by delivering audio chunks in real-time as they're generated, rather than waiting for the complete audio file to be processed. This creates a more responsive user experience that's essential for interactive applications, live conversations, and dynamic content generation where every millisecond counts.</textarea>
-    <button onclick="convertTextToSpeech()">Standard TTS</button>
-    <button onclick="convertTextToSpeechStream()" style="background: #007bff; color: white;">Stream TTS (Blob)</button>
-    <button onclick="convertTextToSpeechProgressive()" style="background: #28a745; color: white;">Progressive Stream (Real-time)</button>
-    <button onclick="convertTextToSpeechWebSocket()" style="background: #dc3545; color: white;">WebSocket Stream (Ultra Low Latency)</button>
-    <button onclick="checkMimeSupport()" style="background: #6c757d; color: white;">Check MIME Support</button>
+    <button onclick="convertTextToSpeechWebSocket()" style="background: #dc3545; color: white;">WebSocket TTS</button>
     <button onclick="getVoices()">Get Voices</button>
     <div id="timer" style="font-weight: bold; margin: 10px 0; color: #333;"></div>
     <div id="status" class="status" style="display: none;"></div>
@@ -62,118 +58,6 @@ Our streaming implementation significantly reduces latency by delivering audio c
             statusDiv.style.display = 'block';
         }
 
-        async function convertTextToSpeech() {
-            const text = document.getElementById('textInput').value.trim();
-            if (!text) return showStatus('Please enter text', 'error');
-
-            showStatus('Converting...', 'info');
-
-            try {
-                const response = await fetch('/api/text-to-speech', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
-                });
-
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                const audioBlob = await response.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-                
-                const audioPlayer = document.getElementById('audioPlayer');
-                audioPlayer.src = audioUrl;
-                audioPlayer.style.display = 'block';
-                audioPlayer.play();
-                
-                showStatus('Success!', 'success');
-            } catch (error) {
-                showStatus(`Error: ${error.message}`, 'error');
-            }
-        }
-
-        async function convertTextToSpeechStream() {
-            const text = document.getElementById('textInput').value.trim();
-            if (!text) return showStatus('Please enter text', 'error');
-
-            // Start timer
-            streamStartTime = performance.now();
-            document.getElementById('timer').textContent = 'Timer: Starting...';
-            showStatus('Streaming...', 'info');
-
-            try {
-                const response = await fetch('/api/text-to-speech-stream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
-                });
-
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                // Create audio element and set up streaming
-                const audioPlayer = document.getElementById('audioPlayer');
-                const audioBlob = await response.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-                
-                audioPlayer.src = audioUrl;
-                audioPlayer.style.display = 'block';
-                
-                // Set up event listener to measure time to audio start
-                audioPlayer.onloadeddata = () => {
-                    const timeToStart = Math.round(performance.now() - streamStartTime);
-                    document.getElementById('timer').textContent = `Timer: ${timeToStart}ms to audio ready`;
-                };
-                
-                audioPlayer.onplay = () => {
-                    const timeToPlay = Math.round(performance.now() - streamStartTime);
-                    document.getElementById('timer').textContent = `Timer: ${timeToPlay}ms to playback start`;
-                };
-                
-                audioPlayer.play();
-                
-                showStatus('Streaming complete!', 'success');
-            } catch (error) {
-                showStatus(`Error: ${error.message}`, 'error');
-                document.getElementById('timer').textContent = 'Timer: Error occurred';
-            }
-        }
-
-        function checkMimeSupport() {
-            if (!('MediaSource' in window)) {
-                showStatus('MediaSource Extensions not supported', 'error');
-                return;
-            }
-
-            const mimeTypes = [
-                'audio/mp4; codecs="mp4a.40.2"',  // AAC in MP4 container
-                'audio/webm; codecs="opus"',      // Opus in WebM container  
-                'audio/mpeg',                     // Raw MP3
-                'audio/mp4',                      // MP4 container
-                'audio/webm',                     // WebM container
-                'video/mp4; codecs="avc1.42E01E,mp4a.40.2"', // H.264 + AAC
-                'video/webm; codecs="vp8,vorbis"' // WebM video
-            ];
-            
-            console.log('=== MediaSource MIME Type Support Check ===');
-            const supported = [];
-            const unsupported = [];
-            
-            mimeTypes.forEach(type => {
-                const isSupported = MediaSource.isTypeSupported(type);
-                console.log(`${type}: ${isSupported ? '✅ SUPPORTED' : '❌ NOT SUPPORTED'}`);
-                if (isSupported) {
-                    supported.push(type);
-                } else {
-                    unsupported.push(type);
-                }
-            });
-            
-            const message = `Supported: ${supported.length} types. Check console for details.`;
-            showStatus(message, supported.length > 0 ? 'success' : 'error');
-            
-            console.log('\n=== SUMMARY ===');
-            console.log('Supported MIME types:', supported);
-            console.log('Unsupported MIME types:', unsupported);
-        }
 
         async function convertTextToSpeechWebSocket() {
             const text = document.getElementById('textInput').value.trim();
@@ -185,7 +69,7 @@ Our streaming implementation significantly reduces latency by delivering audio c
             showStatus('WebSocket streaming...', 'info');
 
             try {
-                const response = await fetch('/api/text-to-speech-websocket', {
+                const response = await fetch('/api/text-to-speech', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
@@ -221,122 +105,6 @@ Our streaming implementation significantly reduces latency by delivering audio c
             }
         }
 
-        async function convertTextToSpeechProgressive() {
-            const text = document.getElementById('textInput').value.trim();
-            if (!text) return showStatus('Please enter text', 'error');
-
-            // Check MediaSource support
-            if (!('MediaSource' in window)) {
-                showStatus('MediaSource Extensions not supported', 'error');
-                return;
-            }
-
-            // Check MIME type support
-            const mimeType = 'audio/mpeg';
-            if (!MediaSource.isTypeSupported(mimeType)) {
-                showStatus('MIME type not supported for progressive streaming', 'error');
-                return;
-            }
-
-            // Start timer
-            streamStartTime = performance.now();
-            document.getElementById('timer').textContent = 'Timer: Starting progressive stream...';
-            showStatus('Progressive streaming...', 'info');
-
-            try {
-                // Setup MediaSource
-                const mediaSource = new MediaSource();
-                const audioPlayer = document.getElementById('audioPlayer');
-                audioPlayer.src = URL.createObjectURL(mediaSource);
-                audioPlayer.style.display = 'block';
-
-                let hasStartedPlaying = false;
-
-                mediaSource.addEventListener('sourceopen', async () => {
-                    const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
-                    let bufferQueue = [];
-                    let isUpdating = false;
-
-                    // Function to process buffer queue
-                    const processQueue = () => {
-                        if (!isUpdating && bufferQueue.length > 0) {
-                            isUpdating = true;
-                            const chunk = bufferQueue.shift();
-                            sourceBuffer.appendBuffer(chunk);
-                        }
-                    };
-
-                    // Handle buffer updates
-                    sourceBuffer.addEventListener('updateend', () => {
-                        isUpdating = false;
-                        processQueue();
-
-                        // Start playing after first chunk is buffered
-                        if (!hasStartedPlaying && audioPlayer.readyState > 0) {
-                            hasStartedPlaying = true;
-                            const timeToFirstPlay = Math.round(performance.now() - streamStartTime);
-                            document.getElementById('timer').textContent = `Timer: ${timeToFirstPlay}ms to first audio chunk`;
-                            audioPlayer.play().catch(console.error);
-                        }
-                    });
-
-                    // Start fetching and streaming
-                    const response = await fetch('/api/text-to-speech-stream', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
-                    });
-
-                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                    const reader = response.body.getReader();
-
-                    const pump = async () => {
-                        try {
-                            while (true) {
-                                const { done, value } = await reader.read();
-                                
-                                if (done) {
-                                    // End the stream when all chunks are received
-                                    if (!isUpdating && bufferQueue.length === 0) {
-                                        mediaSource.endOfStream();
-                                    } else {
-                                        // Wait for queue to empty before ending
-                                        const waitForQueue = () => {
-                                            if (!isUpdating && bufferQueue.length === 0) {
-                                                mediaSource.endOfStream();
-                                            } else {
-                                                setTimeout(waitForQueue, 50);
-                                            }
-                                        };
-                                        waitForQueue();
-                                    }
-                                    
-                                    const totalTime = Math.round(performance.now() - streamStartTime);
-                                    showStatus('Progressive streaming complete!', 'success');
-                                    console.log(`Total progressive streaming time: ${totalTime}ms`);
-                                    break;
-                                }
-
-                                // Add chunk to queue
-                                bufferQueue.push(value);
-                                processQueue();
-                            }
-                        } catch (error) {
-                            console.error('Streaming error:', error);
-                            showStatus(`Streaming error: ${error.message}`, 'error');
-                        }
-                    };
-
-                    pump();
-                });
-
-            } catch (error) {
-                showStatus(`Error: ${error.message}`, 'error');
-                document.getElementById('timer').textContent = 'Timer: Error occurred';
-                console.error('Progressive streaming error:', error);
-            }
-        }
 
         async function getVoices() {
             showStatus('Fetching voices...', 'info');

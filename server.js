@@ -53,83 +53,9 @@ app.get('/api/voices', async (req, res) => {
   }
 });
 
-app.post('/api/text-to-speech', async (req, res) => {
-  try {
-    const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
-    
-    if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
-    }
-
-    const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
-      text: text,
-      model_id: "eleven_flash_v2_5",
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.5
-      }
-    });
-
-    // Convert stream to buffer
-    const chunks = [];
-    for await (const chunk of audioStream) {
-      chunks.push(chunk);
-    }
-    const audioBuffer = Buffer.concat(chunks);
-
-    // Set appropriate headers
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Content-Length': audioBuffer.length
-    });
-
-    res.send(audioBuffer);
-  } catch (error) {
-    console.error('Error converting text to speech:', error);
-    res.status(500).json({ error: 'Failed to convert text to speech: ' + error.message });
-  }
-});
-
-// Streaming TTS endpoint for real-time audio playback
-app.post('/api/text-to-speech-stream', async (req, res) => {
-  try {
-    const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
-    
-    if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
-    }
-
-    const audioStream = await elevenlabs.textToSpeech.stream(voiceId, {
-      text: text,
-      model_id: "eleven_flash_v2_5",
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.5
-      }
-    });
-
-    // Set headers for streaming
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Transfer-Encoding': 'chunked',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    });
-
-    // Stream the audio data directly to the response
-    for await (const chunk of audioStream) {
-      res.write(chunk);
-    }
-    
-    res.end();
-  } catch (error) {
-    console.error('Error streaming text to speech:', error);
-    res.status(500).json({ error: 'Failed to stream text to speech: ' + error.message });
-  }
-});
 
 // WebSocket TTS endpoint for real-time streaming
-app.post('/api/text-to-speech-websocket', async (req, res) => {
+app.post('/api/text-to-speech', async (req, res) => {
   try {
     const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
     
