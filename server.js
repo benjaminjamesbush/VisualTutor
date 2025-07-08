@@ -307,8 +307,13 @@ wss.on('connection', (ws, req) => {
             });
             
           } else if (config.action === 'stop') {
-            // Close Deepgram connection
-            if (deepgramWs) {
+            // Properly close Deepgram connection
+            if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+              console.log('Sending CloseStream message to Deepgram');
+              // Send CloseStream message to let Deepgram finish processing
+              deepgramWs.send(JSON.stringify({ type: 'CloseStream' }));
+              // Deepgram will close the connection after processing remaining audio
+            } else if (deepgramWs) {
               deepgramWs.close();
               deepgramWs = null;
             }
