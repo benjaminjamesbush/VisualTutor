@@ -9,6 +9,7 @@ This file contains critical instructions you must follow when working with code 
 - **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
 - **Follow through on checks**: When you say "let me check" or "I'll check", you MUST immediately perform the actual check using available tools. Never say you will check something without actually doing it in the same response.
 - **Browser-sync for development**: When providing local development URLs, always use port 3001 (not 3000) as browser-sync proxies the Express server and adds auto-refresh functionality. Example: http://localhost:3001/test-page.html
+- **Wait for user actions**: When asking the user to perform a task (click a button, test something, provide feedback), you MUST wait for their response before continuing. Do not proceed with additional actions or analysis until the user has completed the requested task and provided their feedback.
 
 ## Project Overview
 

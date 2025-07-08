@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Deepgram STT Server-Side Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 5px; padding: 10px; cursor: pointer; }
+        .status { margin: 10px 0; padding: 5px; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce7ff; color: #004085; }
+        .warning { background: #fff3cd; color: #856404; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        h3 { margin-top: 0; }
+        .transcription-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        .interim { color: #666; font-style: italic; }
+        .final { color: #000; }
+        #timer { font-weight: bold; margin: 10px 0; color: #333; }
+        .controls { margin: 10px 0; }
+        select { padding: 5px; margin-left: 10px; }
+        .comparison { background: #e8f4ff; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Deepgram Speech-to-Text Test Page (Server-Side WebSocket)</h1>
+    
+    <div class="comparison">
+        <strong>Server-Side Implementation:</strong> Audio is streamed to your server, which proxies it to Deepgram.
+        This provides better API key security and centralized logging/processing capabilities.
+    </div>
+    
+    <!-- WebSocket Live Transcription -->
+    <div class="section">
+        <h3>Live Transcription (Server-Side WebSocket Proxy)</h3>
+        <div class="controls">
+            <button id="wsButton" onclick="toggleTranscription()" style="background: #007bff; color: white;">
+                Start Live Transcription
+            </button>
+            <button onclick="clearTranscription()">Clear</button>
+            <select id="deepgramModel">
+                <option value="nova-3-medical" selected>Nova 3 Medical</option>
+                <option value="nova-3">Nova 3 (General)</option>
+                <option value="nova-2">Nova 2</option>
+                <option value="nova">Nova</option>
+            </select>
+        </div>
+        <div id="wsStatus" class="status" style="display: none;"></div>
+        <div id="timer" style="display: none;"></div>
+        <div class="transcription-container">
+            <div id="liveTranscription">
+                <span class="interim">Waiting to start...</span>
+            </div>
+        </div>
+        
+        <h4>Final Transcription (for LLM):</h4>
+        <textarea id="finalTranscription" readonly rows="6" style="width: 100%; margin: 10px 0;" 
+                  placeholder="Final transcription will appear here after you stop recording..."></textarea>
+    </div>
+
+    <script>
+        let ws = null;
+        let microphone = null;
+        let isTranscribing = false;
+        let transcriptionStartTime = 0;
+        let timerInterval = null;
+        let finalTranscripts = []; // Store all final transcripts
+        let utteranceFinals = {}; // Track finals by utterance ID
+
+        // Toggle transcription
+        async function toggleTranscription() {
+            if (!isTranscribing) {
+                await startTranscription();
+            } else {
+                stopTranscription();
+            }
+        }
+
+        // Start transcription
+        async function startTranscription() {
+            try {
+                showStatus('wsStatus', 'Connecting to server...', 'info');
+                
+                // Clear previous final transcripts
+                finalTranscripts = [];
+                utteranceFinals = {};
+                document.getElementById('finalTranscription').value = '';
+                
+                // Connect to server WebSocket
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                // Connect directly to port 3000 to bypass browser-sync WebSocket issues
+                const wsUrl = `${protocol}//${window.location.hostname}:3000/api/speech-to-text-ws`;
+                console.log('Attempting to connect to:', wsUrl);
+                
+                ws = new WebSocket(wsUrl);
+                console.log('WebSocket created, state:', ws.readyState);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket opened successfully');
+                    showStatus('wsStatus', 'Connected to server', 'success');
+                    
+                    // Send configuration to start Deepgram connection
+                    const config = {
+                        action: 'start',
+                        model: document.getElementById('deepgramModel').value
+                    };
+                    ws.send(JSON.stringify(config));
+                    
+                    // Setup microphone after connection
+                    setTimeout(() => setupMicrophone(), 100);
+                };
+
+                ws.onmessage = (event) => {
+                    console.log('Received message from server:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'status') {
+                            console.log('Status message:', data.message);
+                            showStatus('wsStatus', data.message, 'info');
+                        } else if (data.type === 'error') {
+                            console.error('Error from server:', data.message);
+                            showStatus('wsStatus', `Error: ${data.message}`, 'error');
+                            stopTranscription();
+                        } else {
+                            // Handle transcription data
+                            console.log('Transcription data:', data);
+                            updateTranscription(data);
+                        }
+                    } catch (error) {
+                        // If not JSON, might be transcription data
+                        console.error('Error parsing message:', error);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    console.error('WebSocket state on error:', ws.readyState);
+                    showStatus('wsStatus', 'Connection error', 'error');
+                    stopTranscription();
+                };
+
+                ws.onclose = (event) => {
+                    console.log('WebSocket closed. Code:', event.code, 'Reason:', event.reason);
+                    console.log('Clean close?', event.wasClean);
+                    showStatus('wsStatus', 'Server connection closed', 'warning');
+                    stopTranscription();
+                };
+
+                // Update UI
+                isTranscribing = true;
+                const wsButton = document.getElementById('wsButton');
+                wsButton.textContent = 'Stop Live Transcription';
+                wsButton.style.background = '#dc3545';
+                
+                // Start timer
+                transcriptionStartTime = Date.now();
+                document.getElementById('timer').style.display = 'block';
+                updateTimer();
+                
+            } catch (error) {
+                console.error('Failed to start transcription:', error);
+                showStatus('wsStatus', `Error: ${error.message}`, 'error');
+                stopTranscription();
+            }
+        }
+
+        // Setup microphone
+        async function setupMicrophone() {
+            try {
+                console.log('Requesting microphone access...');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000  // Match working implementation
+                    }
+                });
+                console.log('Microphone access granted');
+
+                // Use same mime type as working implementation
+                const mimeType = 'audio/webm';
+                console.log('Using mime type:', mimeType);
+
+                microphone = new MediaRecorder(stream, {
+                    mimeType: mimeType
+                });
+
+                microphone.ondataavailable = (event) => {
+                    // Send audio data to server
+                    if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                        console.log('Sending audio chunk:', event.data.size, 'bytes');
+                        ws.send(event.data);
+                    }
+                };
+
+                microphone.onerror = (error) => {
+                    console.error('MediaRecorder error:', error);
+                };
+
+                // Start recording with 100ms chunks
+                microphone.start(100);
+                console.log('MediaRecorder started');
+                showStatus('wsStatus', 'Recording...', 'success');
+                
+            } catch (error) {
+                console.error('Microphone error:', error);
+                showStatus('wsStatus', 'Microphone access denied', 'error');
+                stopTranscription();
+            }
+        }
+
+        // Stop transcription
+        function stopTranscription() {
+            // Stop microphone
+            if (microphone && microphone.state !== 'inactive') {
+                microphone.stop();
+                microphone.stream.getTracks().forEach(track => track.stop());
+                microphone = null;
+            }
+
+            // Close WebSocket connection
+            if (ws) {
+                ws.send(JSON.stringify({ action: 'stop' }));
+                ws.close();
+                ws = null;
+            }
+
+            // Update UI
+            isTranscribing = false;
+            const wsButton = document.getElementById('wsButton');
+            wsButton.textContent = 'Start Live Transcription';
+            wsButton.style.background = '#007bff';
+            
+            // Stop timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            // Display final transcription
+            if (finalTranscripts.length > 0) {
+                document.getElementById('finalTranscription').value = finalTranscripts.join(' ');
+            }
+        }
+
+        // Update transcription display
+        function updateTranscription(data) {
+            // Handle different message types from Deepgram
+            if (data.type === 'SpeechStarted') {
+                console.log('Speech started');
+                return;
+            }
+            
+            if (data.type === 'UtteranceEnd') {
+                console.log('Utterance ended');
+                return;
+            }
+            
+            // Handle transcription results
+            if (!data.channel || !data.channel.alternatives || !data.channel.alternatives[0]) {
+                console.log('Unexpected data format:', data);
+                return;
+            }
+
+            const transcript = data.channel.alternatives[0].transcript;
+            if (!transcript) return;
+
+            const transcriptionDiv = document.getElementById('liveTranscription');
+            const isFinal = data.is_final;
+            const speechFinal = data.speech_final;
+            
+            // Create or update utterance
+            let utteranceId = `utterance-${data.start || Date.now()}`;
+            let span = document.getElementById(utteranceId);
+            
+            if (!span) {
+                span = document.createElement('span');
+                span.id = utteranceId;
+                transcriptionDiv.appendChild(span);
+                transcriptionDiv.appendChild(document.createTextNode(' '));
+            }
+
+            span.textContent = transcript;
+            span.className = isFinal ? 'final' : 'interim';
+            
+            // Collect final transcripts
+            if (isFinal) {
+                // Track by utterance to avoid duplicates
+                const utteranceKey = `${data.start}`;
+                if (!utteranceFinals[utteranceKey]) {
+                    utteranceFinals[utteranceKey] = transcript;
+                    finalTranscripts.push(transcript);
+                }
+            }
+
+            // Auto-scroll to bottom
+            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+        }
+
+        // Clear transcription
+        function clearTranscription() {
+            document.getElementById('liveTranscription').innerHTML = '<span class="interim">Waiting to start...</span>';
+            document.getElementById('finalTranscription').value = '';
+            finalTranscripts = [];
+            utteranceFinals = {};
+        }
+
+        // Update timer
+        function updateTimer() {
+            if (!isTranscribing) return;
+            
+            const elapsed = Math.floor((Date.now() - transcriptionStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            
+            document.getElementById('timer').textContent = 
+                `Elapsed: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            timerInterval = setTimeout(updateTimer, 1000);
+        }
+
+        // Show status message
+        function showStatus(elementId, message, type = 'info') {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (isTranscribing) {
+                stopTranscription();
+            }
+        });
+    </script>
+</body>
+</html>
