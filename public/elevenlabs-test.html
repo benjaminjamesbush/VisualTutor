@@ -25,34 +25,13 @@ Our streaming implementation significantly reduces latency by delivering audio c
     <div id="status" class="status" style="display: none;"></div>
     <audio id="audioPlayer" controls style="width: 100%; margin: 10px 0; display: none;"></audio>
     
-    <hr>
-    
-    <h3>STT Test</h3>
-    <button id="recordButton" onclick="toggleRecording()" style="background: #dc3545; color: white;">Start Recording</button>
-    <button onclick="toggleModelInput()">Advanced</button>
-    <div id="modelSelectGroup" style="display: none;">
-        <select id="sttModel">
-            <option value="scribe_v1">Scribe v1</option>
-            <option value="scribe_v1_experimental">Scribe v1 Experimental</option>
-        </select>
-    </div>
-    <div id="sttStatus" class="status" style="display: none;"></div>
-    <textarea id="transcription" readonly rows="4" style="display: none;"></textarea>
 
     <script>
         const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-        let mediaRecorder, audioChunks = [], isRecording = false;
         let streamStartTime = 0;
         
         function showStatus(message, type = 'info') {
             const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.className = `status ${type}`;
-            statusDiv.style.display = 'block';
-        }
-
-        function showSTTStatus(message, type = 'info') {
-            const statusDiv = document.getElementById('sttStatus');
             statusDiv.textContent = message;
             statusDiv.className = `status ${type}`;
             statusDiv.style.display = 'block';
@@ -128,87 +107,6 @@ Our streaming implementation significantly reduces latency by delivering audio c
             }
         }
 
-        function toggleModelInput() {
-            const modelGroup = document.getElementById('modelSelectGroup');
-            modelGroup.style.display = modelGroup.style.display === 'none' ? 'block' : 'none';
-        }
-
-        async function toggleRecording() {
-            if (!isRecording) {
-                await startRecording();
-            } else {
-                await stopRecording();
-            }
-        }
-
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    await sendAudioToServer(audioBlob);
-                    stream.getTracks().forEach(track => track.stop());
-                };
-
-                mediaRecorder.start();
-                isRecording = true;
-                
-                const recordButton = document.getElementById('recordButton');
-                recordButton.textContent = 'Stop Recording';
-                recordButton.style.background = '#28a745';
-                
-                showSTTStatus('Recording...', 'info');
-                
-            } catch (error) {
-                showSTTStatus('Error accessing microphone', 'error');
-            }
-        }
-
-        async function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-                isRecording = false;
-                
-                const recordButton = document.getElementById('recordButton');
-                recordButton.textContent = 'Start Recording';
-                recordButton.style.background = '#dc3545';
-            }
-        }
-
-        async function sendAudioToServer(audioBlob) {
-            const modelId = document.getElementById('sttModel').value;
-            showSTTStatus('Converting...', 'info');
-
-            try {
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'recording.webm');
-                formData.append('modelId', modelId || 'scribe_v1');
-
-                const response = await fetch('/api/speech-to-text', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                const data = await response.json();
-                
-                document.getElementById('transcription').value = data.text || 'No transcription available';
-                document.getElementById('transcription').style.display = 'block';
-                showSTTStatus('Success!', 'success');
-
-            } catch (error) {
-                showSTTStatus(`Error: ${error.message}`, 'error');
-            }
-        }
     </script>
 </body>
 </html>

@@ -155,30 +155,6 @@ app.post('/api/text-to-speech', async (req, res) => {
   }
 });
 
-// Speech-to-Text endpoint - Deepgram implementation pending
-app.post('/api/speech-to-text', upload.single('audio'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Audio file is required' });
-    }
-
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
-
-    // Deepgram STT implementation will be added here
-    res.status(501).json({ error: 'Deepgram STT implementation pending' });
-
-  } catch (error) {
-    console.error('Error converting speech to text:', error);
-    
-    // Clean up uploaded file in case of error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    res.status(500).json({ error: 'Failed to convert speech to text: ' + error.message });
-  }
-});
 
 app.post('/chat', async (req, res) => {
   try {
