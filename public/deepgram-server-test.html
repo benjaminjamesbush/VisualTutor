@@ -72,8 +72,7 @@
         let isTranscribing = false;
         let transcriptionStartTime = 0;
         let timerInterval = null;
-        let finalTranscripts = []; // Store all final transcripts
-        let utteranceFinals = {}; // Track finals by utterance ID
+        let utterances = new Map(); // Store all utterance data
 
         // Toggle transcription
         async function toggleTranscription() {
@@ -89,10 +88,10 @@
             try {
                 showStatus('wsStatus', 'Connecting to server...', 'info');
                 
-                // Clear previous final transcripts
-                finalTranscripts = [];
-                utteranceFinals = {};
+                // Clear previous state
+                utterances.clear();
                 document.getElementById('finalTranscription').value = '';
+                document.getElementById('liveTranscription').innerHTML = '<span class="interim">Listening...</span>';
                 
                 // Connect to server WebSocket
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -246,63 +245,61 @@
                 timerInterval = null;
             }
             
-            // Display final transcription
-            if (finalTranscripts.length > 0) {
-                document.getElementById('finalTranscription').value = finalTranscripts.join(' ');
+            // Display final transcription from utterances
+            if (utterances.size > 0) {
+                const sortedTranscripts = Array.from(utterances.entries())
+                    .sort((a, b) => a[0] - b[0]) // Sort by start time (the key)
+                    .map(entry => entry[1].transcript);
+                document.getElementById('finalTranscription').value = sortedTranscripts.join(' ');
             }
         }
 
         // Update transcription display
         function updateTranscription(data) {
-            // Handle different message types from Deepgram
-            if (data.type === 'SpeechStarted') {
-                console.log('Speech started');
+            if (data.type === 'SpeechStarted' || data.type === 'UtteranceEnd') {
                 return;
             }
             
-            if (data.type === 'UtteranceEnd') {
-                console.log('Utterance ended');
-                return;
-            }
-            
-            // Handle transcription results
             if (!data.channel || !data.channel.alternatives || !data.channel.alternatives[0]) {
                 console.log('Unexpected data format:', data);
                 return;
             }
 
             const transcript = data.channel.alternatives[0].transcript;
-            if (!transcript) return;
+            if (transcript === "") return;
 
             const transcriptionDiv = document.getElementById('liveTranscription');
             const isFinal = data.is_final;
-            const speechFinal = data.speech_final;
             
-            // Create or update utterance
-            let utteranceId = `utterance-${data.start || Date.now()}`;
-            let span = document.getElementById(utteranceId);
-            
-            if (!span) {
-                span = document.createElement('span');
-                span.id = utteranceId;
-                transcriptionDiv.appendChild(span);
-                transcriptionDiv.appendChild(document.createTextNode(' '));
+            // Use start time as a unique identifier for the utterance
+            const utteranceId = data.start;
+
+            if (utteranceId === undefined || utteranceId === null) {
+                console.warn("Received transcript without a start time, cannot process.", data);
+                return;
             }
 
-            span.textContent = transcript;
-            span.className = isFinal ? 'final' : 'interim';
-            
-            // Collect final transcripts
-            if (isFinal) {
-                // Track by utterance to avoid duplicates
-                const utteranceKey = `${data.start}`;
-                if (!utteranceFinals[utteranceKey]) {
-                    utteranceFinals[utteranceKey] = transcript;
-                    finalTranscripts.push(transcript);
-                }
+            // Store the latest transcript for this utterance
+            utterances.set(utteranceId, {
+                transcript: transcript,
+                is_final: isFinal
+            });
+
+            // --- Re-render the transcription display from the utterances map ---
+            const waitingSpan = transcriptionDiv.querySelector('span.interim');
+            if (waitingSpan && waitingSpan.textContent.startsWith('Listening')) {
+                transcriptionDiv.innerHTML = '';
             }
 
-            // Auto-scroll to bottom
+            const sortedUtterances = Array.from(utterances.entries()).sort((a, b) => a[0] - b[0]);
+            
+            let html = '';
+            for (const [id, utterance] of sortedUtterances) {
+                const className = utterance.is_final ? 'final' : 'interim';
+                html += `<span class="${className}">${utterance.transcript}</span> `;
+            }
+
+            transcriptionDiv.innerHTML = html;
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
 
@@ -310,8 +307,7 @@
         function clearTranscription() {
             document.getElementById('liveTranscription').innerHTML = '<span class="interim">Waiting to start...</span>';
             document.getElementById('finalTranscription').value = '';
-            finalTranscripts = [];
-            utteranceFinals = {};
+            utterances.clear();
         }
 
         // Update timer

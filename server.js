@@ -231,13 +231,14 @@ wss.on('error', (error) => {
 wss.on('connection', (ws, req) => {
   console.log('Client connected for STT from:', req.headers.host);
   console.log('WebSocket URL:', req.url);
-  
+
   let deepgramWs = null;
   let isConnected = false;
-  
+  const audioQueue = [];
+
   // Handle incoming messages from client
   ws.on('message', async (message) => {
-    console.log('Raw message received, type:', typeof message, 'isBuffer:', message instanceof Buffer, 'size:', message.length || message.byteLength);
+    // console.log('Raw message received, type:', typeof message, 'isBuffer:', message instanceof Buffer, 'size:', message.length || message.byteLength);
     try {
       // Try to parse as JSON first (config messages are small)
       if (message instanceof Buffer && message.length < 1000) {
@@ -245,12 +246,12 @@ wss.on('connection', (ws, req) => {
           const text = message.toString();
           const config = JSON.parse(text);
           console.log('Received config from client:', config);
-          
+
           if (config.action === 'start') {
             console.log('Starting Deepgram connection...');
             // Initialize Deepgram WebSocket connection
             const deepgramUrl = new URL('wss://api.deepgram.com/v1/listen');
-            
+
             // Add query parameters - match the working client implementation
             const params = {
               model: config.model || 'nova-3-medical',
@@ -262,50 +263,65 @@ wss.on('connection', (ws, req) => {
               vad_events: 'true'
               // Don't specify encoding or sample_rate - let Deepgram auto-detect
             };
-            
+
             Object.keys(params).forEach(key => {
               deepgramUrl.searchParams.append(key, params[key]);
             });
-            
+
             console.log('Deepgram URL:', deepgramUrl.toString());
             console.log('API Key exists:', !!process.env.DEEPGRAM_API_KEY);
             console.log('API Key length:', process.env.DEEPGRAM_API_KEY ? process.env.DEEPGRAM_API_KEY.length : 0);
-            
+
             // Create WebSocket connection to Deepgram
             deepgramWs = new WebSocket(deepgramUrl.toString(), {
               headers: {
                 'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`
               }
             });
-            
+
             deepgramWs.on('open', () => {
               console.log('Connected to Deepgram');
               isConnected = true;
               ws.send(JSON.stringify({ type: 'status', message: 'Connected to Deepgram' }));
+
+              // Process and send any queued audio data
+              console.log(`Processing ${audioQueue.length} queued audio chunks.`);
+              while (audioQueue.length > 0) {
+                const audioChunk = audioQueue.shift();
+                if (deepgramWs.readyState === WebSocket.OPEN) {
+                  deepgramWs.send(audioChunk);
+                  // console.log('Forwarded queued audio to Deepgram');
+                } else {
+                  // If connection closes while processing queue, re-queue and stop.
+                  audioQueue.unshift(audioChunk);
+                  console.log('Deepgram connection closed while processing queue. Re-queueing chunk.');
+                  break;
+                }
+              }
             });
-            
+
             deepgramWs.on('message', (data) => {
               const message = data.toString();
               const parsed = JSON.parse(message);
-              console.log('Received from Deepgram - Type:', parsed.type, 'Has transcript:', !!(parsed.channel && parsed.channel.alternatives && parsed.channel.alternatives[0] && parsed.channel.alternatives[0].transcript));
-              
+              // console.log('Received from Deepgram - Type:', parsed.type, 'Has transcript:', !!(parsed.channel && parsed.channel.alternatives && parsed.channel.alternatives[0] && parsed.channel.alternatives[0].transcript));
+
               // Forward transcription results to client
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(message);
               }
             });
-            
+
             deepgramWs.on('error', (error) => {
               console.error('Deepgram WebSocket error:', error);
               ws.send(JSON.stringify({ type: 'error', message: error.message }));
             });
-            
+
             deepgramWs.on('close', () => {
               console.log('Deepgram connection closed');
               isConnected = false;
               ws.send(JSON.stringify({ type: 'status', message: 'Deepgram connection closed' }));
             });
-            
+
           } else if (config.action === 'stop') {
             // Properly close Deepgram connection
             if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
@@ -323,15 +339,21 @@ wss.on('connection', (ws, req) => {
           // Not JSON, treat as audio
         }
       }
-      
+
       // Handle as audio data
       if (message instanceof Buffer || message instanceof ArrayBuffer) {
-        console.log('Received audio chunk from client:', message.length, 'bytes');
+        // console.log('Received audio chunk from client:', message.length, 'bytes');
         if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+          // If connection is open, send audio immediately
           deepgramWs.send(message);
-          console.log('Forwarded audio to Deepgram');
+          // console.log('Forwarded audio to Deepgram');
+        } else if (deepgramWs) {
+          // If connection is connecting, queue audio
+          // console.log('Deepgram WebSocket not ready. State:', deepgramWs.readyState, 'Queueing audio chunk.');
+          audioQueue.push(message);
         } else {
-          console.log('Deepgram WebSocket not ready. State:', deepgramWs ? deepgramWs.readyState : 'null');
+          // If deepgramWs is not initialized, log it (should not happen in normal flow)
+          console.log('Deepgram connection not initialized. Ignoring audio chunk.');
         }
       }
     } catch (error) {
@@ -339,7 +361,7 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'error', message: error.message }));
     }
   });
-  
+
   // Handle client disconnect
   ws.on('close', () => {
     console.log('Client disconnected from STT');
@@ -347,13 +369,17 @@ wss.on('connection', (ws, req) => {
       deepgramWs.close();
       deepgramWs = null;
     }
+    // Clear queue on disconnect
+    audioQueue.length = 0;
   });
-  
+
   ws.on('error', (error) => {
     console.error('Client WebSocket error:', error);
     if (deepgramWs) {
       deepgramWs.close();
       deepgramWs = null;
     }
+    // Clear queue on error
+    audioQueue.length = 0;
   });
 });
