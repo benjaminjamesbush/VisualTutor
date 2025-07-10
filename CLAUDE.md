@@ -1,8 +1,6 @@
-# CLAUDE.md
-
 This file contains critical instructions you must follow when working with code in this repository.
 
-## Claude Code Rules
+# Assistant Behavior Rules
 
 - **Non-blocking server execution**: When starting Node.js servers or long-running processes, ALWAYS use `nohup command > logfile.log 2>&1 &` to run in background without blocking the terminal session
 - **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
@@ -10,7 +8,7 @@ This file contains critical instructions you must follow when working with code 
 - **Browser-sync for development**: When providing local development URLs, always use port 3001 (not 3000) as browser-sync proxies the Express server and adds auto-refresh functionality. Example: http://localhost:3001/test-page.html
 - **Wait for user actions**: When asking the user to perform a task (click a button, test something, provide feedback), you MUST wait for their response before continuing. Do not proceed with additional actions or analysis until the user has completed the requested task and provided their feedback.
 
-## Server Log Debugging
+# Server Log Debugging
 
 When troubleshooting issues with the server, especially intermittent connection problems, follow these steps to analyze the server logs. The server logs are located in `server.log` in the project root.
 
@@ -35,52 +33,52 @@ When troubleshooting issues with the server, especially intermittent connection 
 
 By examining the logs for both successful and failed sessions, you can identify race conditions or other errors that may be causing intermittent failures.
 
-## Project Overview
+# Project Overview
 
 VisualTutor is a conversational AI agent that answers questions based on user-provided knowledge bases. It features voice input, spoken responses, and a unique text-based chat interface with keyword highlighting.
 
-## Key Architecture Requirements
+# Key Architecture Requirements
 
-### Core Components
+## Core Components
 - **Knowledge Base Management**: Plain text file upload with full content caching
 - **Voice Processing**: Speech-to-text for user input, text-to-speech for AI responses
 - **AI Integration**: Gemini 2.5 Flash model with 1M+ context window, structured JSON output
 - **Chat Interface**: Conversation history with collapsible responses and keyword highlighting
 
-### Technical Stack Requirements
+## Technical Stack Requirements
 - **LLM**: Gemini 2.5 Flash (minimum 1M context window)
 - **STT**: Deepgram nova-3-medical model for accurate voice transcription
 - **TTS**: ElevenLabs lowest latency API
 - **Response Format**: Structured JSON with outline and full text
 - **Knowledge Base**: Full text provided with each prompt (no RAG), use caching for cost efficiency
 
-## Critical Implementation Details
+# Critical Implementation Details
 
-### AI Response Structure
+## AI Response Structure
 - Must return structured JSON containing both outline and full text response
 - Outline should be HTML `<ul>` list format without highlighting
 - Full text may include markdown formatting that must be rendered to HTML
 - AI responses derived from uploaded knowledge base when possible
 - Must state when using general LLM knowledge: "[topic] is not discussed in [source], but based on my general knowledge..."
 
-### Chat Interface Features
+## Chat Interface Features
 - Keyword extraction from outline for highlighting in full text
 - Collapsible text view (collapsed by default)
 - Play/pause controls for audio responses
 - Permanent error display with detailed server messages (not generic failures)
 
-### Voice Processing
+## Voice Processing
 - "Hold-to-speak" microphone button implementation
 - Deepgram nova-3-medical model for accurate voice transcription
 - Graceful handling of long responses that may exceed TTS limits
 - Automatic audio playback after response generation
 
-### User Experience
+## User Experience
 - Onboarding flow for knowledge base file upload
 - Clear visual feedback for recording, processing, and error states
 - Chronological conversation history with clear user/AI distinction
 
-## Development Notes
+# Development Notes
 
 - No RAG implementation - provide full knowledge base content with each API call
 - Use token caching to reduce API costs
