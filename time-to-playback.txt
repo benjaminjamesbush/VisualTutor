@@ -1,0 +1,15 @@
+standard:	17640ms to audio ready
+standard:	35814ms to audio ready
+standard:	57690ms to audio ready
+standard:	53837ms to audio ready
+streaming:	6503ms to audio ready
+streaming:	6920ms to audio ready
+streaming:	6679ms to audio ready
+streaming:	6990ms to audio ready
+websocket:  2139ms
+websocket:  2183ms
+websocket:  2129ms
+
+
+
+2139ms, 2183ms, 2129ms

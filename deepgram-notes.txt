@@ -1,0 +1,31 @@
+deepgram API key: b51a79901e735085dc41615579e18c4922ddff64
+preferred model: nova-3-medical
+preferred language: en-US
+
+#### Install the SDK
+
+If you intend to use one of Deepgram's SDKs to make your request, you must install it.
+
+Open your terminal, navigate to the location on your drive where you want to create your project, and install the Deepgram SDK.
+
+
+```shell JavaScript
+# Install the Deepgram JavaScript SDK
+# https://github.com/deepgram/deepgram-js-sdk
+npm install @deepgram/sdk
+```
+
+### Add Dependencies
+
+
+```JavaScript
+// Install cross-fetch: Platform-agnostic Fetch API with typescript support, a simple interface, and optional polyfill.
+// Install dotenv to protect your api key
+
+// $ npm install cross-fetch dotenv
+```
+
+#### Official Deepgram STT starter app
+https://github.com/deepgram-starters/nextjs-live-transcription
+
+Should we clone the repository so that you can examine the code?

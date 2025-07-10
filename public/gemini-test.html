@@ -19,6 +19,7 @@
     <textarea id="promptInput" rows="5" placeholder="Enter your prompt...">hi, this is a test of your API, give 5 sentence response please.</textarea>
     <button onclick="submitPrompt(false)" style="background: #4285f4; color: white;">Submit to Gemini</button>
     <button onclick="submitPrompt(true)" style="background: #34a853; color: white;">Submit with Streaming</button>
+    <button onclick="submitPrompt(false, true)" style="background: #ea4335; color: white;">Submit with Structured JSON</button>
     <button onclick="clearResponse()">Clear Response</button>
     <div id="timer" style="font-weight: bold; margin: 10px 0; color: #333;"></div>
     <div id="status" class="status" style="display: none;"></div>
@@ -35,19 +36,23 @@
             statusDiv.style.display = 'block';
         }
 
-        async function submitPrompt(useStreaming = false) {
+        async function submitPrompt(useStreaming = false, useStructuredOutput = false) {
             const prompt = document.getElementById('promptInput').value.trim();
             if (!prompt) return showStatus('Please enter a prompt', 'error');
 
             console.log('=== CLIENT: Submitting prompt ===');
             console.log('Prompt:', prompt);
             console.log('Streaming:', useStreaming);
+            console.log('Structured Output:', useStructuredOutput);
 
             // Start timer
             requestStartTime = performance.now();
             const timerElement = document.getElementById('timer');
             timerElement.textContent = 'Timer: Sending request to Gemini...';
-            showStatus(useStreaming ? 'Processing prompt with streaming...' : 'Processing prompt...', 'info');
+            let statusMessage = 'Processing prompt...';
+            if (useStreaming) statusMessage = 'Processing prompt with streaming...';
+            if (useStructuredOutput) statusMessage = 'Processing prompt with structured JSON output...';
+            showStatus(statusMessage, 'info');
             
             // Clear previous response
             const responseOutput = document.getElementById('responseOutput');
@@ -113,7 +118,7 @@
                     const response = await fetch('/api/gemini', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt })
+                        body: JSON.stringify({ prompt: prompt, structuredOutput: useStructuredOutput })
                     });
 
                     console.log('CLIENT: Response status:', response.status);
@@ -131,7 +136,12 @@
                     const responseTime = Math.round(performance.now() - requestStartTime);
                     timerElement.textContent = `Timer: ${responseTime}ms to receive response`;
                     
-                    responseOutput.value = data.response || 'No response received';
+                    if (useStructuredOutput && typeof data.response === 'object') {
+                        // Pretty print JSON response
+                        responseOutput.value = JSON.stringify(data.response, null, 2);
+                    } else {
+                        responseOutput.value = data.response || 'No response received';
+                    }
                     showStatus('Response received successfully!', 'success');
                 }
             } catch (error) {

@@ -178,7 +178,7 @@ app.post('/api/text-to-speech', async (req, res) => {
 // Gemini API endpoint - supports both streaming and non-streaming
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, stream = false } = req.body;
+    const { prompt, stream = false, structuredOutput = false } = req.body;
     
     if (!prompt) {
       console.log('ERROR: No prompt provided in request');
@@ -188,8 +188,30 @@ app.post('/api/gemini', async (req, res) => {
     console.log('=== GEMINI API REQUEST ===');
     console.log('Prompt:', prompt);
     console.log('Stream mode:', stream);
+    console.log('Structured output:', structuredOutput);
     console.log('API Key available:', !!process.env.GEMINI_API_KEY);
     console.log('API Key first 10 chars:', process.env.GEMINI_API_KEY?.substring(0, 10) || 'MISSING');
+    
+    // Build generation config
+    const generationConfig = {};
+    
+    if (structuredOutput) {
+      // Force JSON output with a schema for a list of sentences
+      generationConfig.responseMimeType = 'application/json';
+      generationConfig.responseJsonSchema = {
+        type: 'object',
+        properties: {
+          sentences: {
+            type: 'array',
+            items: {
+              type: 'string'
+            },
+            description: 'List of sentences in the response'
+          }
+        },
+        required: ['sentences']
+      };
+    }
     
     if (stream) {
       // Set headers for streaming response
@@ -198,7 +220,8 @@ app.post('/api/gemini', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       
       const result = await geminiModel.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: generationConfig
       });
       
       console.log('=== GEMINI STREAMING STARTED ===');
@@ -221,7 +244,8 @@ app.post('/api/gemini', async (req, res) => {
     } else {
       // Non-streaming mode (original implementation)
       const result = await geminiModel.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: generationConfig
       });
       const response = result.response;
       const text = response.text();
@@ -230,7 +254,18 @@ app.post('/api/gemini', async (req, res) => {
       console.log('Response length:', text.length);
       console.log('First 100 chars:', text.substring(0, 100));
       
-      res.json({ response: text });
+      if (structuredOutput) {
+        // Parse and return the JSON response
+        try {
+          const jsonResponse = JSON.parse(text);
+          res.json({ response: jsonResponse });
+        } catch (parseError) {
+          console.error('Failed to parse JSON response:', parseError);
+          res.json({ response: text });
+        }
+      } else {
+        res.json({ response: text });
+      }
     }
   } catch (error) {
     console.error('=== GEMINI API ERROR ===');
