@@ -175,10 +175,10 @@ app.post('/api/text-to-speech', async (req, res) => {
   }
 });
 
-// Gemini API endpoint
+// Gemini API endpoint - supports both streaming and non-streaming
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, stream = false } = req.body;
     
     if (!prompt) {
       console.log('ERROR: No prompt provided in request');
@@ -187,18 +187,51 @@ app.post('/api/gemini', async (req, res) => {
 
     console.log('=== GEMINI API REQUEST ===');
     console.log('Prompt:', prompt);
+    console.log('Stream mode:', stream);
     console.log('API Key available:', !!process.env.GEMINI_API_KEY);
     console.log('API Key first 10 chars:', process.env.GEMINI_API_KEY?.substring(0, 10) || 'MISSING');
     
-    const result = await geminiModel.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
-    
-    console.log('=== GEMINI API SUCCESS ===');
-    console.log('Response length:', text.length);
-    console.log('First 100 chars:', text.substring(0, 100));
-    
-    res.json({ response: text });
+    if (stream) {
+      // Set headers for streaming response
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      const result = await geminiModel.generateContentStream({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      });
+      
+      console.log('=== GEMINI STREAMING STARTED ===');
+      
+      // The result has a stream property that is async iterable
+      for await (const chunk of result.stream) {
+        // Each chunk should have a text() method based on the docs
+        const text = chunk.text();
+        if (text) {
+          // Send SSE (Server-Sent Events) format
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        }
+      }
+      
+      // Send completion event
+      res.write('data: [DONE]\n\n');
+      res.end();
+      
+      console.log('=== GEMINI STREAMING COMPLETE ===');
+    } else {
+      // Non-streaming mode (original implementation)
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      });
+      const response = result.response;
+      const text = response.text();
+      
+      console.log('=== GEMINI API SUCCESS ===');
+      console.log('Response length:', text.length);
+      console.log('First 100 chars:', text.substring(0, 100));
+      
+      res.json({ response: text });
+    }
   } catch (error) {
     console.error('=== GEMINI API ERROR ===');
     console.error('Error type:', error.constructor.name);
@@ -211,7 +244,13 @@ app.post('/api/gemini', async (req, res) => {
       ? `${error.message} - ${JSON.stringify(error.errorDetails)}`
       : error.message;
     
-    res.status(500).json({ error: 'Failed to generate response: ' + errorMessage });
+    if (res.headersSent) {
+      // If we're in streaming mode and headers are already sent
+      res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: 'Failed to generate response: ' + errorMessage });
+    }
   }
 });
 
