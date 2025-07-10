@@ -20,11 +20,17 @@
     <button onclick="submitPrompt(false)" style="background: #4285f4; color: white;">Submit to Gemini</button>
     <button onclick="submitPrompt(true)" style="background: #34a853; color: white;">Submit with Streaming</button>
     <button onclick="submitPrompt(false, true)" style="background: #ea4335; color: white;">Submit with Structured JSON</button>
+    <button onclick="submitPrompt(true, true)" style="background: #9c27b0; color: white;">Stream + Structured JSON</button>
     <button onclick="clearResponse()">Clear Response</button>
     <div id="timer" style="font-weight: bold; margin: 10px 0; color: #333;"></div>
     <div id="status" class="status" style="display: none;"></div>
     <h4>Response:</h4>
     <textarea id="responseOutput" rows="15" placeholder="Gemini response will appear here..." readonly></textarea>
+    
+    <div id="prettyJsonContainer" style="margin-top: 10px;">
+        <h4>Pretty-Printed JSON:</h4>
+        <textarea id="prettyJsonOutput" rows="15" placeholder="Pretty-printed JSON will appear here..." readonly></textarea>
+    </div>
     
     <script>
         let requestStartTime = 0;
@@ -57,6 +63,10 @@
             // Clear previous response
             const responseOutput = document.getElementById('responseOutput');
             responseOutput.value = '';
+            
+            // Clear pretty JSON output
+            const prettyJsonOutput = document.getElementById('prettyJsonOutput');
+            prettyJsonOutput.value = '';
 
             try {
                 if (useStreaming) {
@@ -66,7 +76,7 @@
                     const response = await fetch('/api/gemini', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt, stream: true })
+                        body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: useStructuredOutput })
                     });
 
                     if (!response.ok) {
@@ -92,6 +102,17 @@
                                     const totalTime = Math.round(performance.now() - requestStartTime);
                                     timerElement.textContent = `Timer: ${totalTime}ms total (first chunk: ${firstChunkTime}ms)`;
                                     showStatus('Streaming complete!', 'success');
+                                    
+                                    // If structured output, parse and pretty-print the accumulated JSON
+                                    if (useStructuredOutput && responseOutput.value) {
+                                        try {
+                                            const jsonData = JSON.parse(responseOutput.value);
+                                            prettyJsonOutput.value = JSON.stringify(jsonData, null, 2);
+                                        } catch (e) {
+                                            console.error('Failed to parse JSON for pretty printing:', e);
+                                            prettyJsonOutput.value = 'Error: Failed to parse JSON';
+                                        }
+                                    }
                                 } else {
                                     try {
                                         const parsed = JSON.parse(data);
