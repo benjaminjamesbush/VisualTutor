@@ -179,36 +179,6 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-// Deepgram authentication endpoint for temporary tokens
-app.get('/api/deepgram/authenticate', async (req, res) => {
-  try {
-    // For development, we can return the API key directly
-    // In production, you should use Deepgram's createTemporaryKey API
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-      return res.json({
-        key: process.env.DEEPGRAM_API_KEY
-      });
-    }
-
-    // For production, generate a temporary key with restricted scope
-    const { result, error } = await deepgram.auth.createKey({
-      comment: 'Temporary key for browser STT',
-      scopes: ['usage:read', 'project:read', 'keys:read'],
-      expirationDate: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    res.json({
-      key: result.key
-    });
-  } catch (error) {
-    console.error('Error creating Deepgram authentication token:', error);
-    res.status(500).json({ error: 'Failed to create authentication token: ' + error.message });
-  }
-});
 
 // Create HTTP server
 const server = http.createServer(app);
