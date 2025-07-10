@@ -18,12 +18,6 @@
     <h3>Gemini 2.5 Flash - Streaming JSON Response Test</h3>
     <textarea id="promptInput" rows="5" placeholder="Enter your prompt...">Please tell me a creative story with about 10 long, detailed sentences. Make each sentence rich with descriptive language and vivid imagery.</textarea>
     
-    <div style="margin: 10px 0;">
-        <label style="display: flex; align-items: center;">
-            <input type="checkbox" id="disableThinkingCheckbox" checked style="margin-right: 8px;">
-            Disable thinking (faster TTFT, potentially lower quality)
-        </label>
-    </div>
     
     <button onclick="submitPrompt()" style="background: #9c27b0; color: white;">Generate JSON Response</button>
     <button onclick="clearResponse()">Clear Response</button>
@@ -51,12 +45,9 @@
             const prompt = document.getElementById('promptInput').value.trim();
             if (!prompt) return showStatus('Please enter a prompt', 'error');
             
-            const disableThinking = document.getElementById('disableThinkingCheckbox').checked;
-
             console.log('=== CLIENT: Submitting prompt ===');
             console.log('Prompt:', prompt);
             console.log('Mode: Streaming with Structured JSON Output');
-            console.log('Disable Thinking:', disableThinking);
 
             // Start timer
             requestStartTime = performance.now();
@@ -79,7 +70,7 @@
                 const response = await fetch('/api/gemini', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: true, disableThinking: disableThinking })
+                    body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: true })
                 });
 
                     if (!response.ok) {
