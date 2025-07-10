@@ -4,12 +4,36 @@ This file contains critical instructions you must follow when working with code 
 
 ## Claude Code Rules
 
-- **Always push after commit**: When making git commits, you MUST immediately follow with `git push` in the same response to ensure changes are reflected on GitHub
 - **Non-blocking server execution**: When starting Node.js servers or long-running processes, ALWAYS use `nohup command > logfile.log 2>&1 &` to run in background without blocking the terminal session
 - **Auto-restart development server**: For development, use `nohup npm run dev > server.log 2>&1 &` to start nodemon which auto-restarts on file changes
 - **Follow through on checks**: When you say "let me check" or "I'll check", you MUST immediately perform the actual check using available tools. Never say you will check something without actually doing it in the same response.
 - **Browser-sync for development**: When providing local development URLs, always use port 3001 (not 3000) as browser-sync proxies the Express server and adds auto-refresh functionality. Example: http://localhost:3001/test-page.html
 - **Wait for user actions**: When asking the user to perform a task (click a button, test something, provide feedback), you MUST wait for their response before continuing. Do not proceed with additional actions or analysis until the user has completed the requested task and provided their feedback.
+
+## Server Log Debugging
+
+When troubleshooting issues with the server, especially intermittent connection problems, follow these steps to analyze the server logs. The server logs are located in `server.log` in the project root.
+
+1.  **Identify the running server process:**
+    Use `pgrep` to find the Process ID (PID) of the `node server.js` process. This is useful for checking the process status.
+    ```bash
+    pgrep -f 'node server.js'
+    ```
+
+2.  **Locate recent connection attempts:**
+    To find the starting line number of the last 4 connection attempts in the log file, use `grep`.
+    ```bash
+    grep -n 'Client connected' server.log | tail -n 4
+    ```
+
+3.  **Examine a specific log session:**
+    Once you have the starting line number of a session, you can view the relevant log portion. For example, if a session starts at line 3186 and you want to view the next 455 lines, you would use the `read_file` tool with an offset.
+    ```
+    read_file(absolute_path="/path/to/VisualTutor/server.log", limit=455, offset=3185)
+    ```
+    *Note: The offset is the line number minus one.*
+
+By examining the logs for both successful and failed sessions, you can identify race conditions or other errors that may be causing intermittent failures.
 
 ## Project Overview
 
