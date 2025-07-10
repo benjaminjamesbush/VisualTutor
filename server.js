@@ -184,13 +184,13 @@ app.post('/chat', async (req, res) => {
 const server = http.createServer(app);
 
 // WebSocket server for Deepgram STT proxy
-const wss = new WebSocket.Server({ server, path: '/api/speech-to-text-ws' });
+const wss = new WebSocket.Server({ server, path: '/api/speech-to-text' });
 
-console.log('WebSocket server created at path: /api/speech-to-text-ws');
+console.log('WebSocket server created at path: /api/speech-to-text');
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket server ready at ws://localhost:${PORT}/api/speech-to-text-ws`);
+  console.log(`WebSocket server ready at ws://localhost:${PORT}/api/speech-to-text`);
 });
 
 // Add error handler for WebSocket server

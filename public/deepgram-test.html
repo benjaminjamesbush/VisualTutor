@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Deepgram STT Server-Side Test</title>
+    <title>Deepgram STT Test</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         button { margin: 5px; padding: 10px; cursor: pointer; }
@@ -31,7 +31,7 @@
     </style>
 </head>
 <body>
-    <h1>Deepgram Speech-to-Text Test Page (Server-Side WebSocket)</h1>
+    <h1>Deepgram Speech-to-Text Test Page</h1>
     
     <div class="comparison">
         <strong>Server-Side Implementation:</strong> Audio is streamed to your server, which proxies it to Deepgram.
@@ -40,7 +40,7 @@
     
     <!-- WebSocket Live Transcription -->
     <div class="section">
-        <h3>Live Transcription (Server-Side WebSocket Proxy)</h3>
+        <h3>Live Transcription</h3>
         <div class="controls">
             <button id="wsButton" onclick="toggleTranscription()" style="background: #007bff; color: white;">
                 Start Live Transcription
@@ -96,7 +96,7 @@
                 // Connect to server WebSocket
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 // Connect directly to port 3000 to bypass browser-sync WebSocket issues
-                const wsUrl = `${protocol}//${window.location.hostname}:3000/api/speech-to-text-ws`;
+                const wsUrl = `${protocol}//${window.location.hostname}:3000/api/speech-to-text`;
                 console.log('Attempting to connect to:', wsUrl);
                 
                 ws = new WebSocket(wsUrl);
