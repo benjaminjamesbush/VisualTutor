@@ -178,7 +178,7 @@ app.post('/api/text-to-speech', async (req, res) => {
 // Gemini API endpoint - supports both streaming and non-streaming
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, stream = false, structuredOutput = false } = req.body;
+    const { prompt, stream = false, structuredOutput = false, disableThinking = false } = req.body;
     
     if (!prompt) {
       console.log('ERROR: No prompt provided in request');
@@ -189,6 +189,7 @@ app.post('/api/gemini', async (req, res) => {
     console.log('Prompt:', prompt);
     console.log('Stream mode:', stream);
     console.log('Structured output:', structuredOutput);
+    console.log('Disable thinking:', disableThinking);
     console.log('API Key available:', !!process.env.GEMINI_API_KEY);
     console.log('API Key first 10 chars:', process.env.GEMINI_API_KEY?.substring(0, 10) || 'MISSING');
     
@@ -210,6 +211,13 @@ app.post('/api/gemini', async (req, res) => {
           }
         },
         required: ['sentences']
+      };
+    }
+    
+    if (disableThinking) {
+      // Disable thinking for minimum TTFT
+      generationConfig.thinkingConfig = {
+        thinkingBudget: 0
       };
     }
     

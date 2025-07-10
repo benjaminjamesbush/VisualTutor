@@ -15,12 +15,17 @@
     </style>
 </head>
 <body>
-    <h3>Gemini 2.5 Flash Test - UPDATED WITH STREAMING SUPPORT</h3>
-    <textarea id="promptInput" rows="5" placeholder="Enter your prompt...">hi, this is a test of your API, give 5 sentence response please.</textarea>
-    <button onclick="submitPrompt(false)" style="background: #4285f4; color: white;">Submit to Gemini</button>
-    <button onclick="submitPrompt(true)" style="background: #34a853; color: white;">Submit with Streaming</button>
-    <button onclick="submitPrompt(false, true)" style="background: #ea4335; color: white;">Submit with Structured JSON</button>
-    <button onclick="submitPrompt(true, true)" style="background: #9c27b0; color: white;">Stream + Structured JSON</button>
+    <h3>Gemini 2.5 Flash - Streaming JSON Response Test</h3>
+    <textarea id="promptInput" rows="5" placeholder="Enter your prompt...">Please tell me a creative story with about 10 long, detailed sentences. Make each sentence rich with descriptive language and vivid imagery.</textarea>
+    
+    <div style="margin: 10px 0;">
+        <label style="display: flex; align-items: center;">
+            <input type="checkbox" id="disableThinkingCheckbox" checked style="margin-right: 8px;">
+            Disable thinking (faster TTFT, potentially lower quality)
+        </label>
+    </div>
+    
+    <button onclick="submitPrompt()" style="background: #9c27b0; color: white;">Generate JSON Response</button>
     <button onclick="clearResponse()">Clear Response</button>
     <div id="timer" style="font-weight: bold; margin: 10px 0; color: #333;"></div>
     <div id="status" class="status" style="display: none;"></div>
@@ -42,23 +47,22 @@
             statusDiv.style.display = 'block';
         }
 
-        async function submitPrompt(useStreaming = false, useStructuredOutput = false) {
+        async function submitPrompt() {
             const prompt = document.getElementById('promptInput').value.trim();
             if (!prompt) return showStatus('Please enter a prompt', 'error');
+            
+            const disableThinking = document.getElementById('disableThinkingCheckbox').checked;
 
             console.log('=== CLIENT: Submitting prompt ===');
             console.log('Prompt:', prompt);
-            console.log('Streaming:', useStreaming);
-            console.log('Structured Output:', useStructuredOutput);
+            console.log('Mode: Streaming with Structured JSON Output');
+            console.log('Disable Thinking:', disableThinking);
 
             // Start timer
             requestStartTime = performance.now();
             const timerElement = document.getElementById('timer');
             timerElement.textContent = 'Timer: Sending request to Gemini...';
-            let statusMessage = 'Processing prompt...';
-            if (useStreaming) statusMessage = 'Processing prompt with streaming...';
-            if (useStructuredOutput) statusMessage = 'Processing prompt with structured JSON output...';
-            showStatus(statusMessage, 'info');
+            showStatus('Processing prompt with streaming JSON output...', 'info');
             
             // Clear previous response
             const responseOutput = document.getElementById('responseOutput');
@@ -69,15 +73,14 @@
             prettyJsonOutput.value = '';
 
             try {
-                if (useStreaming) {
-                    console.log('CLIENT: Using Server-Sent Events for streaming');
-                    let firstChunkTime = null;
-                    
-                    const response = await fetch('/api/gemini', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: useStructuredOutput })
-                    });
+                console.log('CLIENT: Using Server-Sent Events for streaming');
+                let firstChunkTime = null;
+                
+                const response = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: true, disableThinking: disableThinking })
+                });
 
                     if (!response.ok) {
                         throw new Error(`API Error: ${response.status}`);
@@ -103,15 +106,13 @@
                                     timerElement.textContent = `Timer: ${totalTime}ms total (first chunk: ${firstChunkTime}ms)`;
                                     showStatus('Streaming complete!', 'success');
                                     
-                                    // If structured output, parse and pretty-print the accumulated JSON
-                                    if (useStructuredOutput && responseOutput.value) {
-                                        try {
-                                            const jsonData = JSON.parse(responseOutput.value);
-                                            prettyJsonOutput.value = JSON.stringify(jsonData, null, 2);
-                                        } catch (e) {
-                                            console.error('Failed to parse JSON for pretty printing:', e);
-                                            prettyJsonOutput.value = 'Error: Failed to parse JSON';
-                                        }
+                                    // Parse and pretty-print the accumulated JSON
+                                    try {
+                                        const jsonData = JSON.parse(responseOutput.value);
+                                        prettyJsonOutput.value = JSON.stringify(jsonData, null, 2);
+                                    } catch (e) {
+                                        console.error('Failed to parse JSON for pretty printing:', e);
+                                        prettyJsonOutput.value = 'Error: Failed to parse JSON';
                                     }
                                 } else {
                                     try {
@@ -133,38 +134,6 @@
                             }
                         }
                     }
-                } else {
-                    // Non-streaming mode (original implementation)
-                    console.log('CLIENT: Sending POST request to /api/gemini');
-                    const response = await fetch('/api/gemini', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt, structuredOutput: useStructuredOutput })
-                    });
-
-                    console.log('CLIENT: Response status:', response.status);
-                    console.log('CLIENT: Response headers:', response.headers);
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        console.error('CLIENT: Error response:', errorData);
-                        throw new Error(`API Error: ${response.status} - ${errorData.error || 'Unknown error'}`);
-                    }
-
-                    const data = await response.json();
-                    console.log('CLIENT: Success response:', data);
-                    
-                    const responseTime = Math.round(performance.now() - requestStartTime);
-                    timerElement.textContent = `Timer: ${responseTime}ms to receive response`;
-                    
-                    if (useStructuredOutput && typeof data.response === 'object') {
-                        // Pretty print JSON response
-                        responseOutput.value = JSON.stringify(data.response, null, 2);
-                    } else {
-                        responseOutput.value = data.response || 'No response received';
-                    }
-                    showStatus('Response received successfully!', 'success');
-                }
             } catch (error) {
                 console.error('CLIENT: Caught error:', error);
                 showStatus(`Error: ${error.message}`, 'error');
@@ -177,6 +146,7 @@
 
         function clearResponse() {
             document.getElementById('responseOutput').value = '';
+            document.getElementById('prettyJsonOutput').value = '';
             document.getElementById('timer').textContent = '';
             document.getElementById('status').style.display = 'none';
         }
