@@ -7,6 +7,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { createClient } = require('@deepgram/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 const app = express();
@@ -20,8 +21,26 @@ const elevenlabs = new ElevenLabsClient({
 // Initialize Deepgram client
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
+// Initialize Gemini client
+console.log('Initializing Gemini with API key:', process.env.GEMINI_API_KEY ? 'Key present' : 'Key missing');
+console.log('API key length:', process.env.GEMINI_API_KEY?.length || 0);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
 app.use(cors());
 app.use(express.json());
+
+// Disable caching for all static files (development only)
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  next();
+});
+
 app.use(express.static('public'));
 
 const storage = multer.diskStorage({
@@ -153,6 +172,46 @@ app.post('/api/text-to-speech', async (req, res) => {
   } catch (error) {
     console.error('Error setting up WebSocket TTS:', error);
     res.status(500).json({ error: 'Failed to set up WebSocket TTS: ' + error.message });
+  }
+});
+
+// Gemini API endpoint
+app.post('/api/gemini', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      console.log('ERROR: No prompt provided in request');
+      return res.status(400).json({ error: 'No prompt provided' });
+    }
+
+    console.log('=== GEMINI API REQUEST ===');
+    console.log('Prompt:', prompt);
+    console.log('API Key available:', !!process.env.GEMINI_API_KEY);
+    console.log('API Key first 10 chars:', process.env.GEMINI_API_KEY?.substring(0, 10) || 'MISSING');
+    
+    const result = await geminiModel.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+    
+    console.log('=== GEMINI API SUCCESS ===');
+    console.log('Response length:', text.length);
+    console.log('First 100 chars:', text.substring(0, 100));
+    
+    res.json({ response: text });
+  } catch (error) {
+    console.error('=== GEMINI API ERROR ===');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    console.error('Error status:', error.status);
+    console.error('Error details:', JSON.stringify(error.errorDetails, null, 2));
+    console.error('Full error:', error);
+    
+    const errorMessage = error.errorDetails 
+      ? `${error.message} - ${JSON.stringify(error.errorDetails)}`
+      : error.message;
+    
+    res.status(500).json({ error: 'Failed to generate response: ' + errorMessage });
   }
 });
 
