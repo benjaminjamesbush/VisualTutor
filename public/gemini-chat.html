@@ -258,10 +258,13 @@
                         enterPressCount = 0;
                     } else {
                         // Insert newline for 1st and 2nd Enter press
-                        const start = userInput.selectionStart;
-                        const end = userInput.selectionEnd;
-                        userInput.value = content.substring(0, start) + '\n' + content.substring(end);
-                        userInput.selectionStart = userInput.selectionEnd = start + 1;
+                        // Only insert newline if the typed textarea has content
+                        if (hasTypedContent) {
+                            const start = userInput.selectionStart;
+                            const end = userInput.selectionEnd;
+                            userInput.value = content.substring(0, start) + '\n' + content.substring(end);
+                            userInput.selectionStart = userInput.selectionEnd = start + 1;
+                        }
                     }
                 }
             } else if (e.key === 'Escape') {
