@@ -19,6 +19,22 @@
         .error { background: #f8d7da; color: #721c24; }
         .info { background: #cce7ff; color: #004085; }
         #timer { font-weight: bold; margin: 10px 0; color: #333; }
+        .transcription-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+        .interim { color: #666; font-style: italic; }
+        .final { color: #000; }
+        .mute-controls { margin: 5px 0; display: flex; align-items: center; gap: 10px; }
+        .mute-controls input[type="checkbox"] { cursor: pointer; }
+        .mute-controls label { cursor: pointer; user-select: none; }
     </style>
 </head>
 <body>
@@ -38,6 +54,15 @@
     </div>
     -->
     <div id="status" class="status" style="display: none;"></div>
+    <div class="mute-controls">
+        <input type="checkbox" id="muteCheckbox" checked>
+        <label for="muteCheckbox">Mute Transcription</label>
+    </div>
+    <div class="transcription-container">
+        <div id="liveTranscription">
+            <span class="interim">Transcription will appear here when unmuted...</span>
+        </div>
+    </div>
     <div class="input-container">
         <textarea id="userInput" placeholder="Type your message... (press Enter 3 times to send)" disabled></textarea>
         <button onclick="clearChat()">Clear Chat</button>
@@ -52,15 +77,45 @@
         let currentAbortController = null;
         let enterPressCount = 0;
         
+        // Transcription variables
+        let ws = null;
+        let microphone = null;
+        let isTranscribing = false;
+        let utterances = new Map();
+        let microphoneStream = null;
+        
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
         const timerElement = document.getElementById('timer');
+        const muteCheckbox = document.getElementById('muteCheckbox');
+        const liveTranscription = document.getElementById('liveTranscription');
         
         // Enable input on load
-        window.onload = () => {
+        window.onload = async () => {
             userInput.disabled = false;
             userInput.focus();
             setupFileUpload();
+            
+            // Request microphone permissions on load
+            try {
+                console.log('Requesting microphone permissions on page load...');
+                microphoneStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+                console.log('Microphone access granted on page load');
+                // Stop the stream immediately - we'll use it later when needed
+                microphoneStream.getTracks().forEach(track => track.stop());
+                
+                // Setup mute checkbox listener
+                muteCheckbox.addEventListener('change', handleMuteChange);
+            } catch (error) {
+                console.error('Failed to get microphone permissions:', error);
+                showStatus('Microphone access denied. Voice transcription will not be available.', 'error');
+            }
         };
         
         function setupFileUpload() {
@@ -232,14 +287,40 @@
         }
         
         async function sendMessage() {
-            const message = userInput.value.trim();
-            if (!message) return;
+            const typedMessage = userInput.value.trim();
+            const transcribedMessage = liveTranscription.textContent.trim();
+            
+            // Remove the default placeholder text
+            const isPlaceholder = transcribedMessage.includes('Transcription will appear here') || 
+                                  transcribedMessage.includes('Listening...');
+            const cleanTranscription = isPlaceholder ? '' : transcribedMessage;
+            
+            // Combine messages
+            let message = '';
+            if (cleanTranscription && typedMessage) {
+                message = `Transcribed: ${cleanTranscription}\nTyped: ${typedMessage}`;
+            } else if (cleanTranscription) {
+                message = `Transcribed: ${cleanTranscription}`;
+            } else if (typedMessage) {
+                message = typedMessage;
+            } else {
+                return; // Nothing to send
+            }
             
             // Disable input during streaming
             isStreaming = true;
             userInput.disabled = true;
             userInput.value = '';
             userInput.placeholder = 'Press Enter to interrupt...';
+            
+            // Clear transcription
+            clearTranscription();
+            
+            // Stop transcription during response streaming
+            if (isTranscribing) {
+                console.log('Stopping transcription for response streaming');
+                stopTranscription();
+            }
             
             // Add user message to UI and history
             addMessage('user', message);
@@ -387,6 +468,12 @@
                 userInput.focus();
                 currentAbortController = null;
                 enterPressCount = 0;
+                
+                // Restart transcription if unmuted
+                if (!muteCheckbox.checked) {
+                    console.log('Restarting transcription after response');
+                    startTranscription();
+                }
             }
         }
         
@@ -397,6 +484,239 @@
             document.getElementById('status').style.display = 'none';
             userInput.focus();
         }
+        
+        // Handle mute checkbox changes
+        function handleMuteChange() {
+            const isMuted = muteCheckbox.checked;
+            console.log('Mute checkbox changed, muted:', isMuted);
+            
+            if (isMuted) {
+                // Stop transcription if running
+                if (isTranscribing) {
+                    stopTranscription();
+                }
+            } else {
+                // Start transcription if not streaming a response
+                if (!isStreaming) {
+                    startTranscription();
+                }
+            }
+        }
+        
+        // Start transcription
+        async function startTranscription() {
+            try {
+                console.log('Starting transcription...');
+                showStatus('Connecting to transcription server...', 'info');
+                
+                // Clear previous state
+                utterances.clear();
+                liveTranscription.innerHTML = '<span class="interim">Listening...</span>';
+                
+                // Connect to server WebSocket
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.hostname}:3000/api/speech-to-text`;
+                console.log('Attempting to connect to:', wsUrl);
+                
+                ws = new WebSocket(wsUrl);
+                console.log('WebSocket created, state:', ws.readyState);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket opened successfully');
+                    showStatus('Connected to transcription server', 'success');
+                    
+                    // Send configuration to start Deepgram connection
+                    const config = {
+                        action: 'start',
+                        model: 'nova-3-medical'
+                    };
+                    ws.send(JSON.stringify(config));
+                    
+                    // Setup microphone after connection
+                    setTimeout(() => setupMicrophone(), 100);
+                };
+                
+                ws.onmessage = (event) => {
+                    console.log('Received message from server:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'status') {
+                            console.log('Status message:', data.message);
+                            showStatus(data.message, 'info');
+                        } else if (data.type === 'error') {
+                            console.error('Error from server:', data.message);
+                            showStatus(`Transcription error: ${data.message}`, 'error');
+                            stopTranscription();
+                        } else {
+                            // Handle transcription data
+                            console.log('Transcription data:', data);
+                            updateTranscription(data);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    console.error('WebSocket state on error:', ws.readyState);
+                    showStatus('Transcription connection error', 'error');
+                    stopTranscription();
+                };
+                
+                ws.onclose = (event) => {
+                    console.log('WebSocket closed. Code:', event.code, 'Reason:', event.reason);
+                    console.log('Clean close?', event.wasClean);
+                    if (isTranscribing) {
+                        showStatus('Transcription connection closed', 'warning');
+                    }
+                    isTranscribing = false;
+                };
+                
+                // Update state
+                isTranscribing = true;
+                
+            } catch (error) {
+                console.error('Failed to start transcription:', error);
+                showStatus(`Failed to start transcription: ${error.message}`, 'error');
+                stopTranscription();
+            }
+        }
+        
+        // Setup microphone
+        async function setupMicrophone() {
+            try {
+                console.log('Setting up microphone...');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+                console.log('Microphone stream obtained');
+                
+                const mimeType = 'audio/webm';
+                console.log('Using mime type:', mimeType);
+                
+                microphone = new MediaRecorder(stream, {
+                    mimeType: mimeType
+                });
+                
+                microphone.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                        console.log('Sending audio chunk:', event.data.size, 'bytes');
+                        ws.send(event.data);
+                    }
+                };
+                
+                microphone.onerror = (error) => {
+                    console.error('MediaRecorder error:', error);
+                    showStatus('Microphone error', 'error');
+                };
+                
+                // Start recording with 100ms chunks
+                microphone.start(100);
+                console.log('MediaRecorder started');
+                showStatus('Listening...', 'success');
+                
+            } catch (error) {
+                console.error('Microphone setup error:', error);
+                showStatus('Microphone access denied', 'error');
+                stopTranscription();
+            }
+        }
+        
+        // Stop transcription
+        function stopTranscription() {
+            console.log('Stopping transcription...');
+            
+            // Stop microphone
+            if (microphone && microphone.state !== 'inactive') {
+                microphone.stop();
+                microphone.stream.getTracks().forEach(track => track.stop());
+                microphone = null;
+                console.log('Microphone stopped');
+            }
+            
+            // Close WebSocket connection
+            if (ws) {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'stop' }));
+                }
+                ws.close();
+                ws = null;
+                console.log('WebSocket closed');
+            }
+            
+            // Update state
+            isTranscribing = false;
+            
+            // Show current transcription content
+            if (utterances.size === 0) {
+                liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
+            }
+        }
+        
+        // Update transcription display
+        function updateTranscription(data) {
+            if (data.type === 'SpeechStarted' || data.type === 'UtteranceEnd') {
+                return;
+            }
+            
+            if (!data.channel || !data.channel.alternatives || !data.channel.alternatives[0]) {
+                console.log('Unexpected data format:', data);
+                return;
+            }
+            
+            const transcript = data.channel.alternatives[0].transcript;
+            if (transcript === "") return;
+            
+            const isFinal = data.is_final;
+            const utteranceId = data.start;
+            
+            if (utteranceId === undefined || utteranceId === null) {
+                console.warn("Received transcript without a start time, cannot process.", data);
+                return;
+            }
+            
+            // Store the latest transcript for this utterance
+            utterances.set(utteranceId, {
+                transcript: transcript,
+                is_final: isFinal
+            });
+            
+            // Re-render the transcription display from the utterances map
+            const waitingSpan = liveTranscription.querySelector('span.interim');
+            if (waitingSpan && waitingSpan.textContent.startsWith('Listening')) {
+                liveTranscription.innerHTML = '';
+            }
+            
+            const sortedUtterances = Array.from(utterances.entries()).sort((a, b) => a[0] - b[0]);
+            
+            let html = '';
+            for (const [id, utterance] of sortedUtterances) {
+                const className = utterance.is_final ? 'final' : 'interim';
+                html += `<span class="${className}">${utterance.transcript}</span> `;
+            }
+            
+            liveTranscription.innerHTML = html;
+            liveTranscription.scrollTop = liveTranscription.scrollHeight;
+        }
+        
+        // Clear transcription
+        function clearTranscription() {
+            liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
+            utterances.clear();
+        }
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (isTranscribing) {
+                stopTranscription();
+            }
+        });
     </script>
 </body>
 </html>
