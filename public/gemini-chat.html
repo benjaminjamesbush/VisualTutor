@@ -32,9 +32,11 @@
     </div>
     <div id="chatContainer" class="chat-container"></div>
     <div id="timer"></div>
+    <!-- Cache info commented out until cachedContentTokenCount is fixed
     <div id="cacheInfo" style="margin: 10px 0; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; display: none;">
         <strong>Cache Stats:</strong> <span id="cacheStats"></span>
     </div>
+    -->
     <div id="status" class="status" style="display: none;"></div>
     <div class="input-container">
         <input type="text" id="userInput" placeholder="Type your message..." disabled>
@@ -212,11 +214,11 @@
                                         pre.textContent = fullResponse;
                                         chatContainer.scrollTop = chatContainer.scrollHeight;
                                     } else if (parsed.cacheInfo) {
-                                        // Display cache information
-                                        const cacheDiv = document.getElementById('cacheInfo');
-                                        const cacheStats = document.getElementById('cacheStats');
-                                        cacheStats.textContent = `${parsed.cacheInfo.cachedTokens} cached tokens out of ${parsed.cacheInfo.totalTokens} total (${Math.round(parsed.cacheInfo.cacheHitRate * 100)}% cache hit rate)`;
-                                        cacheDiv.style.display = 'block';
+                                        // Cache info commented out until cachedContentTokenCount is fixed
+                                        // const cacheDiv = document.getElementById('cacheInfo');
+                                        // const cacheStats = document.getElementById('cacheStats');
+                                        // cacheStats.textContent = `${parsed.cacheInfo.cachedTokens} cached tokens out of ${parsed.cacheInfo.totalTokens} total (${Math.round(parsed.cacheInfo.cacheHitRate * 100)}% cache hit rate)`;
+                                        // cacheDiv.style.display = 'block';
                                     } else if (parsed.error) {
                                         throw new Error(parsed.error);
                                     }
