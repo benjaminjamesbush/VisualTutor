@@ -49,6 +49,7 @@
         let isStreaming = false;
         let knowledgeBaseContent = '';
         let knowledgeBaseFileName = '';
+        let currentAbortController = null;
         
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
@@ -56,6 +57,8 @@
         
         // Enable input on load
         window.onload = () => {
+            console.log('=== Gemini Chat Page Loaded ===');
+            console.log('Console logging is working');
             userInput.disabled = false;
             userInput.focus();
             setupFileUpload();
@@ -92,9 +95,86 @@
             else return Math.round(bytes / (1024 * 1024) * 10) / 10 + ' MB';
         }
         
-        userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !isStreaming) {
-                sendMessage();
+        function fixIncompleteJSON(partialJSON) {
+            // Try to parse as-is first
+            try {
+                const parsed = JSON.parse(partialJSON);
+                console.log('JSON was already valid, no fixing needed');
+                return parsed;
+            } catch (e) {
+                console.log('JSON parse failed, attempting to fix:', e.message);
+            }
+            
+            let fixed = partialJSON.trim();
+            
+            // Check if we're in the middle of a string by counting quotes
+            let quoteCount = 0;
+            let inString = false;
+            let lastChar = '';
+            
+            for (let i = 0; i < fixed.length; i++) {
+                const char = fixed[i];
+                if (char === '"' && lastChar !== '\\') {
+                    quoteCount++;
+                    inString = !inString;
+                }
+                lastChar = char;
+            }
+            
+            // If we're in the middle of a string, close it
+            if (inString) {
+                console.log('Detected unclosed string, adding closing quote');
+                fixed += '"';
+            }
+            
+            // Check if we need to close the array
+            if (!fixed.includes('"]')) {
+                // Find the last occurrence of sentences array
+                const sentencesIndex = fixed.lastIndexOf('"sentences"');
+                if (sentencesIndex !== -1) {
+                    // Check if array is not closed
+                    const afterSentences = fixed.substring(sentencesIndex);
+                    if (afterSentences.includes('[') && !afterSentences.includes(']')) {
+                        console.log('Detected unclosed array, adding closing bracket');
+                        fixed += ']';
+                    }
+                }
+            }
+            
+            // Check if we need to close the object
+            if (!fixed.endsWith('}')) {
+                console.log('Detected unclosed object, adding closing brace');
+                fixed += '}';
+            }
+            
+            console.log('Fixed JSON attempt:', fixed);
+            
+            // Try to parse the fixed JSON
+            try {
+                const parsed = JSON.parse(fixed);
+                // Add interruption marker if sentences array exists
+                if (parsed.sentences && Array.isArray(parsed.sentences)) {
+                    parsed.sentences.push('(Response interrupted by user)');
+                }
+                return parsed;
+            } catch (e) {
+                // If still can't parse, return a default structure
+                return {
+                    sentences: ['(Response interrupted by user - partial response could not be recovered)']
+                };
+            }
+        }
+        
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (isStreaming) {
+                    // Interrupt current stream
+                    if (currentAbortController) {
+                        currentAbortController.abort();
+                    }
+                } else if (document.activeElement === userInput) {
+                    sendMessage();
+                }
             }
         });
         
@@ -129,6 +209,7 @@
             isStreaming = true;
             userInput.disabled = true;
             userInput.value = '';
+            userInput.placeholder = 'Press Enter to interrupt...';
             
             // Add user message to UI and history
             addMessage('user', message);
@@ -153,6 +234,9 @@
             let firstChunkTime = null;
             
             try {
+                // Create new AbortController for this request
+                currentAbortController = new AbortController();
+                
                 const requestBody = {
                     contents: conversationHistory,
                     structuredOutput: true
@@ -169,7 +253,8 @@
                 const response = await fetch('/api/gemini', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify(requestBody),
+                    signal: currentAbortController.signal
                 });
                 
                 if (!response.ok) {
@@ -230,15 +315,62 @@
                     }
                 }
             } catch (error) {
-                console.error('Error:', error);
-                showStatus(`Error: ${error.message}`, 'error');
-                timerElement.textContent = 'Timer: Request failed';
-                pre.textContent = `Error: ${error.message}`;
+                if (error.name === 'AbortError') {
+                    // Handle user interruption
+                    console.log('Stream interrupted by user');
+                    console.warn('INTERRUPTION DETECTED - Check if this appears in console');
+                    
+                    // Add temporary alert to confirm code is running
+                    // alert('Interruption detected! Check console for logs.');
+                    
+                    showStatus('Response interrupted - Check console for validation logs', 'info');
+                    const totalTime = Math.round(performance.now() - requestStartTime);
+                    timerElement.textContent = `Timer: ${totalTime}ms (interrupted)`;
+                    
+                    // Fix incomplete JSON and add to conversation history
+                    if (fullResponse) {
+                        console.log('=== INTERRUPTION: Fixing incomplete JSON ===');
+                        console.log('Original partial response:', fullResponse);
+                        const fixedResponse = fixIncompleteJSON(fullResponse);
+                        console.log('Fixed response:', fixedResponse);
+                        console.log('Is valid JSON:', typeof fixedResponse === 'object');
+                        console.log('Fixed JSON string:', JSON.stringify(fixedResponse));
+                        
+                        // Add validation info to status
+                        const validationMsg = `Response interrupted - Fixed JSON with ${fixedResponse.sentences ? fixedResponse.sentences.length : 0} sentences`;
+                        showStatus(validationMsg, 'info');
+                        
+                        // Update the display with the fixed JSON
+                        pre.textContent = JSON.stringify(fixedResponse, null, 2);
+                        
+                        // Add the interrupted response to conversation history
+                        conversationHistory.push({
+                            role: 'model',
+                            parts: [{ text: JSON.stringify(fixedResponse) }]
+                        });
+                    } else {
+                        // No response received before interruption
+                        const emptyResponse = { sentences: ['(Response interrupted before any content was received)'] };
+                        pre.textContent = JSON.stringify(emptyResponse, null, 2);
+                        conversationHistory.push({
+                            role: 'model',
+                            parts: [{ text: JSON.stringify(emptyResponse) }]
+                        });
+                    }
+                } else {
+                    // Handle other errors
+                    console.error('Error:', error);
+                    showStatus(`Error: ${error.message}`, 'error');
+                    timerElement.textContent = 'Timer: Request failed';
+                    pre.textContent = `Error: ${error.message}`;
+                }
             } finally {
-                // Re-enable input
+                // Re-enable input and clear abort controller
                 isStreaming = false;
                 userInput.disabled = false;
+                userInput.placeholder = 'Type your message...';
                 userInput.focus();
+                currentAbortController = null;
             }
         }
         
