@@ -57,8 +57,6 @@
         
         // Enable input on load
         window.onload = () => {
-            console.log('=== Gemini Chat Page Loaded ===');
-            console.log('Console logging is working');
             userInput.disabled = false;
             userInput.focus();
             setupFileUpload();
@@ -98,11 +96,9 @@
         function fixIncompleteJSON(partialJSON) {
             // Try to parse as-is first
             try {
-                const parsed = JSON.parse(partialJSON);
-                console.log('JSON was already valid, no fixing needed');
-                return parsed;
+                return JSON.parse(partialJSON);
             } catch (e) {
-                console.log('JSON parse failed, attempting to fix:', e.message);
+                // Not valid JSON, attempt to fix it
             }
             
             let fixed = partialJSON.trim();
@@ -123,7 +119,6 @@
             
             // If we're in the middle of a string, close it
             if (inString) {
-                console.log('Detected unclosed string, adding closing quote');
                 fixed += '"';
             }
             
@@ -135,7 +130,6 @@
                     // Check if array is not closed
                     const afterSentences = fixed.substring(sentencesIndex);
                     if (afterSentences.includes('[') && !afterSentences.includes(']')) {
-                        console.log('Detected unclosed array, adding closing bracket');
                         fixed += ']';
                     }
                 }
@@ -143,11 +137,8 @@
             
             // Check if we need to close the object
             if (!fixed.endsWith('}')) {
-                console.log('Detected unclosed object, adding closing brace');
                 fixed += '}';
             }
-            
-            console.log('Fixed JSON attempt:', fixed);
             
             // Try to parse the fixed JSON
             try {
@@ -317,28 +308,13 @@
             } catch (error) {
                 if (error.name === 'AbortError') {
                     // Handle user interruption
-                    console.log('Stream interrupted by user');
-                    console.warn('INTERRUPTION DETECTED - Check if this appears in console');
-                    
-                    // Add temporary alert to confirm code is running
-                    // alert('Interruption detected! Check console for logs.');
-                    
-                    showStatus('Response interrupted - Check console for validation logs', 'info');
+                    showStatus('Response interrupted', 'info');
                     const totalTime = Math.round(performance.now() - requestStartTime);
                     timerElement.textContent = `Timer: ${totalTime}ms (interrupted)`;
                     
                     // Fix incomplete JSON and add to conversation history
                     if (fullResponse) {
-                        console.log('=== INTERRUPTION: Fixing incomplete JSON ===');
-                        console.log('Original partial response:', fullResponse);
                         const fixedResponse = fixIncompleteJSON(fullResponse);
-                        console.log('Fixed response:', fixedResponse);
-                        console.log('Is valid JSON:', typeof fixedResponse === 'object');
-                        console.log('Fixed JSON string:', JSON.stringify(fixedResponse));
-                        
-                        // Add validation info to status
-                        const validationMsg = `Response interrupted - Fixed JSON with ${fixedResponse.sentences ? fixedResponse.sentences.length : 0} sentences`;
-                        showStatus(validationMsg, 'info');
                         
                         // Update the display with the fixed JSON
                         pre.textContent = JSON.stringify(fixedResponse, null, 2);
