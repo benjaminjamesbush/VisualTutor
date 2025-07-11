@@ -472,7 +472,11 @@
                 // Restart transcription if unmuted
                 if (!muteCheckbox.checked) {
                     console.log('Restarting transcription after response');
-                    startTranscription();
+                    // Add longer delay to allow server cleanup
+                    setTimeout(() => {
+                        console.log('Starting transcription after delay');
+                        startTranscription();
+                    }, 1000);
                 }
             }
         }
@@ -503,10 +507,16 @@
             }
         }
         
-        // Start transcription
-        async function startTranscription() {
+        // Start transcription with retry capability
+        async function startTranscription(retryCount = 0) {
+            // Prevent overlapping connections
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                console.log('WebSocket connection already exists, skipping...');
+                return;
+            }
+            
             try {
-                console.log('Starting transcription...');
+                console.log(`Starting transcription... (attempt ${retryCount + 1})`);
                 showStatus('Connecting to transcription server...', 'info');
                 
                 // Clear previous state
@@ -561,17 +571,56 @@
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
                     console.error('WebSocket state on error:', ws.readyState);
-                    showStatus('Transcription connection error', 'error');
-                    stopTranscription();
+                    
+                    // Retry with exponential backoff
+                    if (retryCount < 3) {
+                        const retryDelay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                        console.log(`Retrying connection in ${retryDelay}ms...`);
+                        showStatus(`Connection failed, retrying in ${retryDelay/1000}s...`, 'warning');
+                        
+                        // Clean up current connection
+                        if (ws) {
+                            ws.close();
+                            ws = null;
+                        }
+                        isTranscribing = false;
+                        
+                        setTimeout(() => {
+                            if (!isStreaming && !muteCheckbox.checked) {
+                                startTranscription(retryCount + 1);
+                            }
+                        }, retryDelay);
+                    } else {
+                        console.error('Max retries reached, giving up');
+                        showStatus('Failed to connect after multiple attempts', 'error');
+                        stopTranscription();
+                    }
                 };
                 
                 ws.onclose = (event) => {
                     console.log('WebSocket closed. Code:', event.code, 'Reason:', event.reason);
                     console.log('Clean close?', event.wasClean);
-                    if (isTranscribing) {
+                    
+                    // Clean up WebSocket reference
+                    ws = null;
+                    isTranscribing = false;
+                    
+                    if (event.code === 1006 && retryCount < 3) {
+                        console.error('Abnormal closure - attempting retry');
+                        const retryDelay = Math.pow(2, retryCount) * 1000;
+                        showStatus(`Connection lost, retrying in ${retryDelay/1000}s...`, 'warning');
+                        
+                        setTimeout(() => {
+                            if (!isStreaming && !muteCheckbox.checked) {
+                                startTranscription(retryCount + 1);
+                            }
+                        }, retryDelay);
+                    } else if (event.code === 1006) {
+                        console.error('Abnormal closure - connection lost without proper close handshake');
+                        showStatus('Transcription connection lost abnormally', 'error');
+                    } else if (isTranscribing) {
                         showStatus('Transcription connection closed', 'warning');
                     }
-                    isTranscribing = false;
                 };
                 
                 // Update state
