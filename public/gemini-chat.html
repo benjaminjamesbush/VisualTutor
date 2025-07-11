@@ -23,8 +23,24 @@
 </head>
 <body>
     <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
+    <div id="knowledgeUpload" style="margin-bottom: 20px; padding: 15px; background: #f0f8ff; border: 1px solid #4CAF50; border-radius: 5px;">
+        <label for="fileInput" style="display: block; margin-bottom: 10px; font-weight: bold;">Upload Knowledge Base (Text File):</label>
+        <input type="file" id="fileInput" accept=".txt" style="margin-bottom: 10px;">
+        <div id="fileInfo" style="display: none; margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 3px;">
+            <strong>Loaded:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
+        </div>
+        <div style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="showFullResponse">
+                <span>Show full API response (debug mode)</span>
+            </label>
+        </div>
+    </div>
     <div id="chatContainer" class="chat-container"></div>
     <div id="timer"></div>
+    <div id="cacheInfo" style="margin: 10px 0; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; display: none;">
+        <strong>Cache Stats:</strong> <span id="cacheStats"></span>
+    </div>
     <div id="status" class="status" style="display: none;"></div>
     <div class="input-container">
         <input type="text" id="userInput" placeholder="Type your message..." disabled>
@@ -35,6 +51,8 @@
         let conversationHistory = [];
         let requestStartTime = 0;
         let isStreaming = false;
+        let knowledgeBaseContent = '';
+        let knowledgeBaseFileName = '';
         
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
@@ -44,7 +62,39 @@
         window.onload = () => {
             userInput.disabled = false;
             userInput.focus();
+            setupFileUpload();
         };
+        
+        function setupFileUpload() {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.addEventListener('change', async (event) => {
+                const file = event.target.files[0];
+                if (file && file.type === 'text/plain') {
+                    try {
+                        knowledgeBaseContent = await file.text();
+                        knowledgeBaseFileName = file.name;
+                        
+                        // Update UI
+                        document.getElementById('fileName').textContent = file.name;
+                        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                        document.getElementById('fileInfo').style.display = 'block';
+                        
+                        showStatus(`Knowledge base "${file.name}" loaded successfully! (${knowledgeBaseContent.length} characters)`, 'success');
+                    } catch (error) {
+                        showStatus(`Error reading file: ${error.message}`, 'error');
+                    }
+                } else {
+                    showStatus('Please select a text file (.txt)', 'error');
+                    event.target.value = '';
+                }
+            });
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            else if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+            else return Math.round(bytes / (1024 * 1024) * 10) / 10 + ' MB';
+        }
         
         userInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !isStreaming) {
@@ -107,13 +157,20 @@
             let firstChunkTime = null;
             
             try {
+                const requestBody = {
+                    contents: conversationHistory,
+                    structuredOutput: true
+                };
+                
+                // Add knowledge base to system prompt if available
+                if (knowledgeBaseContent) {
+                    requestBody.systemInstruction = `You are a helpful assistant. You have access to the following knowledge base content from "${knowledgeBaseFileName}":\n\n${knowledgeBaseContent}\n\nWhen answering questions, refer to this knowledge base when relevant. If the user asks about something not in the knowledge base, state that it's not discussed in the provided content and use your general knowledge instead.`;
+                }
+                
                 const response = await fetch('/api/gemini', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: conversationHistory, 
-                        structuredOutput: true 
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 if (!response.ok) {
@@ -154,8 +211,32 @@
                                             timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
                                         }
                                         fullResponse += parsed.text;
-                                        pre.textContent = fullResponse;
+                                        
+                                        // Check if we should show full response or just JSON
+                                        const showFullResponse = document.getElementById('showFullResponse').checked;
+                                        if (showFullResponse) {
+                                            pre.textContent = fullResponse;
+                                        } else {
+                                            // Try to parse as JSON and show formatted
+                                            try {
+                                                const jsonData = JSON.parse(fullResponse);
+                                                if (jsonData.sentences && Array.isArray(jsonData.sentences)) {
+                                                    pre.textContent = jsonData.sentences.join(' ');
+                                                } else {
+                                                    pre.textContent = fullResponse;
+                                                }
+                                            } catch (e) {
+                                                // If not valid JSON yet, show as is
+                                                pre.textContent = fullResponse;
+                                            }
+                                        }
                                         chatContainer.scrollTop = chatContainer.scrollHeight;
+                                    } else if (parsed.cacheInfo) {
+                                        // Display cache information
+                                        const cacheDiv = document.getElementById('cacheInfo');
+                                        const cacheStats = document.getElementById('cacheStats');
+                                        cacheStats.textContent = `${parsed.cacheInfo.cachedTokens} cached tokens out of ${parsed.cacheInfo.totalTokens} total (${Math.round(parsed.cacheInfo.cacheHitRate * 100)}% cache hit rate)`;
+                                        cacheDiv.style.display = 'block';
                                     } else if (parsed.error) {
                                         throw new Error(parsed.error);
                                     }

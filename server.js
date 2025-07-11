@@ -178,7 +178,7 @@ app.post('/api/text-to-speech', async (req, res) => {
 // Gemini API endpoint - streaming only
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, contents, structuredOutput = false } = req.body;
+    const { prompt, contents, structuredOutput = false, systemInstruction } = req.body;
     
     // Support both single prompt and conversation history
     let conversationContents;
@@ -229,13 +229,19 @@ app.post('/api/gemini', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     
+    // Use provided system instruction or default
+    const sysInstruction = systemInstruction || 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.';
+    
     const result = await geminiModel.generateContentStream({
       contents: conversationContents,
-      systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
+      systemInstruction: sysInstruction,
       generationConfig: generationConfig
     });
     
     console.log('=== GEMINI STREAMING STARTED ===');
+    
+    let totalTokens = 0;
+    let cachedTokens = 0;
     
     // The result has a stream property that is async iterable
     for await (const chunk of result.stream) {
@@ -245,6 +251,34 @@ app.post('/api/gemini', async (req, res) => {
         // Send SSE (Server-Sent Events) format
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
+      
+      // Check for usage metadata in the chunk
+      if (chunk.usageMetadata) {
+        totalTokens = chunk.usageMetadata.promptTokenCount || 0;
+        cachedTokens = chunk.usageMetadata.cachedContentTokenCount || 0;
+      }
+    }
+    
+    // Try to get final usage metadata from the response
+    const response = await result.response;
+    if (response.usageMetadata) {
+      console.log('=== USAGE METADATA ===');
+      console.log('Full usageMetadata:', JSON.stringify(response.usageMetadata, null, 2));
+      totalTokens = response.usageMetadata.promptTokenCount || totalTokens;
+      cachedTokens = response.usageMetadata.cachedContentTokenCount || cachedTokens;
+    }
+    
+    // Send cache information if available
+    if (totalTokens > 0) {
+      const cacheHitRate = totalTokens > 0 ? cachedTokens / totalTokens : 0;
+      console.log(`Cache stats: ${cachedTokens}/${totalTokens} tokens cached (${Math.round(cacheHitRate * 100)}%)`);
+      res.write(`data: ${JSON.stringify({ 
+        cacheInfo: {
+          cachedTokens,
+          totalTokens,
+          cacheHitRate
+        }
+      })}\n\n`);
     }
     
     // Send completion event
