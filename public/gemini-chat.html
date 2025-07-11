@@ -12,7 +12,7 @@
         .assistant-message { background: #f5f5f5; margin-right: 20%; border: 1px solid #ddd; }
         .assistant-message pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 12px; }
         .input-container { display: flex; gap: 10px; }
-        #userInput { flex: 1; padding: 10px; font-size: 14px; }
+        #userInput { flex: 1; padding: 10px; font-size: 14px; height: 100px; resize: none; overflow-y: auto; font-family: Arial, sans-serif; }
         button { padding: 10px 20px; cursor: pointer; }
         .status { margin: 10px 0; padding: 5px; border-radius: 3px; }
         .success { background: #d4edda; color: #155724; }
@@ -39,7 +39,7 @@
     -->
     <div id="status" class="status" style="display: none;"></div>
     <div class="input-container">
-        <input type="text" id="userInput" placeholder="Type your message..." disabled>
+        <textarea id="userInput" placeholder="Type your message... (press Enter 3 times to send)" disabled></textarea>
         <button onclick="clearChat()">Clear Chat</button>
     </div>
     
@@ -50,6 +50,7 @@
         let knowledgeBaseContent = '';
         let knowledgeBaseFileName = '';
         let currentAbortController = null;
+        let enterPressCount = 0;
         
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
@@ -156,16 +157,53 @@
             }
         }
         
-        document.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        document.addEventListener('keydown', (e) => {
+            // Always focus textarea if not already focused
+            if (document.activeElement !== userInput && !userInput.disabled) {
+                userInput.focus();
+            }
+            
+            if (e.key === 'Tab' && document.activeElement === userInput) {
+                e.preventDefault();
+                const start = userInput.selectionStart;
+                const end = userInput.selectionEnd;
+                const value = userInput.value;
+                userInput.value = value.substring(0, start) + '\t' + value.substring(end);
+                userInput.selectionStart = userInput.selectionEnd = start + 1;
+                enterPressCount = 0;
+            } else if (e.key === 'Enter') {
                 if (isStreaming) {
-                    // Interrupt current stream
+                    // Single Enter to interrupt current stream
                     if (currentAbortController) {
                         currentAbortController.abort();
+                        enterPressCount = 0;
                     }
                 } else if (document.activeElement === userInput) {
-                    sendMessage();
+                    e.preventDefault();
+                    const content = userInput.value;
+                    
+                    // If textarea is empty, do nothing
+                    if (!content) {
+                        return;
+                    }
+                    
+                    enterPressCount++;
+                    
+                    if (enterPressCount === 3) {
+                        // Submit on third Enter press
+                        sendMessage();
+                        enterPressCount = 0;
+                    } else {
+                        // Insert newline for 1st and 2nd Enter press
+                        const start = userInput.selectionStart;
+                        const end = userInput.selectionEnd;
+                        userInput.value = content.substring(0, start) + '\n' + content.substring(end);
+                        userInput.selectionStart = userInput.selectionEnd = start + 1;
+                    }
                 }
+            } else {
+                // Reset counter on any non-Enter key
+                enterPressCount = 0;
             }
         });
         
@@ -344,9 +382,10 @@
                 // Re-enable input and clear abort controller
                 isStreaming = false;
                 userInput.disabled = false;
-                userInput.placeholder = 'Type your message...';
+                userInput.placeholder = 'Type your message... (press Enter 3 times to send)';
                 userInput.focus();
                 currentAbortController = null;
+                enterPressCount = 0;
             }
         }
         
