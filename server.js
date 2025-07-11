@@ -178,15 +178,22 @@ app.post('/api/text-to-speech', async (req, res) => {
 // Gemini API endpoint - supports both streaming and non-streaming
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, stream = false, structuredOutput = false } = req.body;
+    const { prompt, contents, stream = false, structuredOutput = false } = req.body;
     
-    if (!prompt) {
-      console.log('ERROR: No prompt provided in request');
-      return res.status(400).json({ error: 'No prompt provided' });
+    // Support both single prompt and conversation history
+    let conversationContents;
+    if (contents) {
+      conversationContents = contents;
+    } else if (prompt) {
+      conversationContents = [{ role: 'user', parts: [{ text: prompt }] }];
+    } else {
+      console.log('ERROR: No prompt or contents provided in request');
+      return res.status(400).json({ error: 'No prompt or contents provided' });
     }
 
     console.log('=== GEMINI API REQUEST ===');
-    console.log('Prompt:', prompt);
+    console.log('Using contents array:', !!contents);
+    console.log('Messages count:', conversationContents.length);
     console.log('Stream mode:', stream);
     console.log('Structured output:', structuredOutput);
     console.log('API Key available:', !!process.env.GEMINI_API_KEY);
@@ -225,7 +232,8 @@ app.post('/api/gemini', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       
       const result = await geminiModel.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: conversationContents,
+        systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
         generationConfig: generationConfig
       });
       
@@ -249,7 +257,8 @@ app.post('/api/gemini', async (req, res) => {
     } else {
       // Non-streaming mode (original implementation)
       const result = await geminiModel.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: conversationContents,
+        systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
         generationConfig: generationConfig
       });
       const response = result.response;

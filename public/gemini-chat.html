@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini 2.5 Flash - Chatbot Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; display: flex; flex-direction: column; height: calc(100vh - 40px); }
+        h3 { margin-top: 0; }
+        .chat-container { flex: 1; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #f5f5f5; }
+        .message { margin: 10px 0; padding: 8px 12px; border-radius: 5px; }
+        .user-message { background: #e3f2fd; margin-left: 20%; text-align: right; }
+        .assistant-message { background: #f5f5f5; margin-right: 20%; border: 1px solid #ddd; }
+        .assistant-message pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 12px; }
+        .input-container { display: flex; gap: 10px; }
+        #userInput { flex: 1; padding: 10px; font-size: 14px; }
+        button { padding: 10px 20px; cursor: pointer; }
+        .status { margin: 10px 0; padding: 5px; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce7ff; color: #004085; }
+        #timer { font-weight: bold; margin: 10px 0; color: #333; }
+    </style>
+</head>
+<body>
+    <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
+    <div id="chatContainer" class="chat-container"></div>
+    <div id="timer"></div>
+    <div id="status" class="status" style="display: none;"></div>
+    <div class="input-container">
+        <input type="text" id="userInput" placeholder="Type your message..." disabled>
+        <button onclick="clearChat()">Clear Chat</button>
+    </div>
+    
+    <script>
+        let conversationHistory = [];
+        let requestStartTime = 0;
+        let isStreaming = false;
+        
+        const userInput = document.getElementById('userInput');
+        const chatContainer = document.getElementById('chatContainer');
+        const timerElement = document.getElementById('timer');
+        
+        // Enable input on load
+        window.onload = () => {
+            userInput.disabled = false;
+            userInput.focus();
+        };
+        
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !isStreaming) {
+                sendMessage();
+            }
+        });
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        function addMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
+            
+            if (role === 'user') {
+                messageDiv.textContent = content;
+            } else {
+                const pre = document.createElement('pre');
+                pre.textContent = content;
+                messageDiv.appendChild(pre);
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            // Disable input during streaming
+            isStreaming = true;
+            userInput.disabled = true;
+            userInput.value = '';
+            
+            // Add user message to UI and history
+            addMessage('user', message);
+            conversationHistory.push({
+                role: 'user',
+                parts: [{ text: message }]
+            });
+            
+            // Start timer
+            requestStartTime = performance.now();
+            timerElement.textContent = 'Timer: Sending request to Gemini...';
+            showStatus('Processing with streaming JSON output...', 'info');
+            
+            // Create placeholder for assistant response
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'message assistant-message';
+            const pre = document.createElement('pre');
+            assistantDiv.appendChild(pre);
+            chatContainer.appendChild(assistantDiv);
+            
+            let fullResponse = '';
+            let firstChunkTime = null;
+            
+            try {
+                const response = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: conversationHistory, 
+                        stream: true, 
+                        structuredOutput: true 
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                const totalTime = Math.round(performance.now() - requestStartTime);
+                                timerElement.textContent = `Timer: ${totalTime}ms total (first chunk: ${firstChunkTime}ms)`;
+                                showStatus('Streaming complete!', 'success');
+                                
+                                // Add complete response to conversation history
+                                conversationHistory.push({
+                                    role: 'model',
+                                    parts: [{ text: fullResponse }]
+                                });
+                            } else {
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.text) {
+                                        if (!firstChunkTime) {
+                                            firstChunkTime = Math.round(performance.now() - requestStartTime);
+                                            timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
+                                        }
+                                        fullResponse += parsed.text;
+                                        pre.textContent = fullResponse;
+                                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                                    } else if (parsed.error) {
+                                        throw new Error(parsed.error);
+                                    }
+                                } catch (e) {
+                                    console.error('Error parsing SSE data:', e);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+                timerElement.textContent = 'Timer: Request failed';
+                pre.textContent = `Error: ${error.message}`;
+            } finally {
+                // Re-enable input
+                isStreaming = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+        
+        function clearChat() {
+            conversationHistory = [];
+            chatContainer.innerHTML = '';
+            timerElement.textContent = '';
+            document.getElementById('status').style.display = 'none';
+            userInput.focus();
+        }
+    </script>
+</body>
+</html>
