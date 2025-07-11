@@ -29,12 +29,6 @@
         <div id="fileInfo" style="display: none; margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 3px;">
             <strong>Loaded:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
         </div>
-        <div style="margin-top: 10px;">
-            <label style="display: flex; align-items: center; gap: 5px;">
-                <input type="checkbox" id="showFullResponse">
-                <span>Show full API response (debug mode)</span>
-            </label>
-        </div>
     </div>
     <div id="chatContainer" class="chat-container"></div>
     <div id="timer"></div>
@@ -164,7 +158,10 @@
                 
                 // Add knowledge base to system prompt if available
                 if (knowledgeBaseContent) {
+                    console.log('Knowledge base loaded:', knowledgeBaseFileName, 'Length:', knowledgeBaseContent.length);
                     requestBody.systemInstruction = `You are a helpful assistant. You have access to the following knowledge base content from "${knowledgeBaseFileName}":\n\n${knowledgeBaseContent}\n\nWhen answering questions, refer to this knowledge base when relevant. If the user asks about something not in the knowledge base, state that it's not discussed in the provided content and use your general knowledge instead.`;
+                } else {
+                    console.log('No knowledge base loaded');
                 }
                 
                 const response = await fetch('/api/gemini', {
@@ -211,25 +208,8 @@
                                             timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
                                         }
                                         fullResponse += parsed.text;
-                                        
-                                        // Check if we should show full response or just JSON
-                                        const showFullResponse = document.getElementById('showFullResponse').checked;
-                                        if (showFullResponse) {
-                                            pre.textContent = fullResponse;
-                                        } else {
-                                            // Try to parse as JSON and show formatted
-                                            try {
-                                                const jsonData = JSON.parse(fullResponse);
-                                                if (jsonData.sentences && Array.isArray(jsonData.sentences)) {
-                                                    pre.textContent = jsonData.sentences.join(' ');
-                                                } else {
-                                                    pre.textContent = fullResponse;
-                                                }
-                                            } catch (e) {
-                                                // If not valid JSON yet, show as is
-                                                pre.textContent = fullResponse;
-                                            }
-                                        }
+                                        // Show the raw response (which should be JSON)
+                                        pre.textContent = fullResponse;
                                         chatContainer.scrollTop = chatContainer.scrollHeight;
                                     } else if (parsed.cacheInfo) {
                                         // Display cache information

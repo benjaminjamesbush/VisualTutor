@@ -243,8 +243,32 @@ app.post('/api/gemini', async (req, res) => {
     let totalTokens = 0;
     let cachedTokens = 0;
     
+    // Create log file for this request
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const logFileName = `gemini-response-${timestamp}.json`;
+    const logFilePath = path.join(__dirname, 'logs', logFileName);
+    
+    // Ensure logs directory exists
+    if (!fs.existsSync(path.join(__dirname, 'logs'))) {
+      fs.mkdirSync(path.join(__dirname, 'logs'));
+    }
+    
+    const logData = {
+      timestamp: new Date().toISOString(),
+      chunks: [],
+      finalResponse: null,
+      error: null
+    };
+    
     // The result has a stream property that is async iterable
+    let chunkIndex = 0;
     for await (const chunk of result.stream) {
+      // Log the full chunk
+      logData.chunks.push({
+        index: chunkIndex++,
+        chunk: chunk
+      });
+      
       // Each chunk should have a text() method based on the docs
       const text = chunk.text();
       if (text) {
@@ -261,12 +285,18 @@ app.post('/api/gemini', async (req, res) => {
     
     // Try to get final usage metadata from the response
     const response = await result.response;
+    logData.finalResponse = response;
+    
     if (response.usageMetadata) {
       console.log('=== USAGE METADATA ===');
       console.log('Full usageMetadata:', JSON.stringify(response.usageMetadata, null, 2));
       totalTokens = response.usageMetadata.promptTokenCount || totalTokens;
       cachedTokens = response.usageMetadata.cachedContentTokenCount || cachedTokens;
     }
+    
+    // Write log file
+    fs.writeFileSync(logFilePath, JSON.stringify(logData, null, 2));
+    console.log(`API response logged to: ${logFileName}`);
     
     // Send cache information if available
     if (totalTokens > 0) {
@@ -293,6 +323,19 @@ app.post('/api/gemini', async (req, res) => {
     console.error('Error status:', error.status);
     console.error('Error details:', JSON.stringify(error.errorDetails, null, 2));
     console.error('Full error:', error);
+    
+    // Log error if we have a log file started
+    if (typeof logData !== 'undefined' && typeof logFilePath !== 'undefined') {
+      logData.error = {
+        type: error.constructor.name,
+        message: error.message,
+        status: error.status,
+        errorDetails: error.errorDetails,
+        fullError: error
+      };
+      fs.writeFileSync(logFilePath, JSON.stringify(logData, null, 2));
+      console.log(`Error logged to: ${logFileName}`);
+    }
     
     const errorMessage = error.errorDetails 
       ? `${error.message} - ${JSON.stringify(error.errorDetails)}`
