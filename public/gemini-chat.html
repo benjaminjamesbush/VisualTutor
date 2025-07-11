@@ -237,9 +237,16 @@
                 } else if (document.activeElement === userInput) {
                     e.preventDefault();
                     const content = userInput.value;
+                    const transcriptionContent = liveTranscription.textContent.trim();
                     
-                    // If textarea is empty, do nothing
-                    if (!content) {
+                    // Check if there's content in either typed textarea or transcription
+                    const hasTypedContent = content.length > 0;
+                    const hasTranscriptionContent = transcriptionContent.length > 0 && 
+                        !transcriptionContent.includes('Transcription will appear here') &&
+                        !transcriptionContent.includes('Listening...');
+                    
+                    // If neither has content, do nothing
+                    if (!hasTypedContent && !hasTranscriptionContent) {
                         return;
                     }
                     
@@ -539,9 +546,12 @@ ${knowledgeContent}`;
                 console.log(`Starting transcription... (attempt ${retryCount + 1})`);
                 showStatus('Connecting to transcription server...', 'info');
                 
-                // Clear previous state
-                utterances.clear();
-                liveTranscription.innerHTML = '<span class="interim">Listening...</span>';
+                // Don't clear transcription content - preserve existing text
+                // Only show "Listening..." if there's no existing content
+                if (!liveTranscription.textContent.trim() || 
+                    liveTranscription.textContent.includes('Transcription will appear here')) {
+                    liveTranscription.innerHTML = '<span class="interim">Listening...</span>';
+                }
                 
                 // Connect to server WebSocket
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -722,8 +732,9 @@ ${knowledgeContent}`;
             // Update state
             isTranscribing = false;
             
-            // Show current transcription content
-            if (utterances.size === 0) {
+            // Don't clear transcription - let it persist
+            // Only show placeholder if there's truly no content
+            if (utterances.size === 0 && !liveTranscription.textContent.trim()) {
                 liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
             }
         }
@@ -757,20 +768,33 @@ ${knowledgeContent}`;
             });
             
             // Re-render the transcription display from the utterances map
+            // Only clear "Listening..." text, preserve any existing transcription
             const waitingSpan = liveTranscription.querySelector('span.interim');
             if (waitingSpan && waitingSpan.textContent.startsWith('Listening')) {
-                liveTranscription.innerHTML = '';
+                waitingSpan.remove();
             }
             
             const sortedUtterances = Array.from(utterances.entries()).sort((a, b) => a[0] - b[0]);
             
-            let html = '';
+            // Get existing transcription content (excluding placeholder text)
+            let existingContent = '';
+            const existingSpans = liveTranscription.querySelectorAll('span.final');
+            existingSpans.forEach(span => {
+                if (!span.textContent.includes('Transcription will appear here') && 
+                    !span.textContent.includes('Listening...')) {
+                    existingContent += span.outerHTML + ' ';
+                }
+            });
+            
+            // Build new content from current utterances
+            let newContent = '';
             for (const [id, utterance] of sortedUtterances) {
                 const className = utterance.is_final ? 'final' : 'interim';
-                html += `<span class="${className}">${utterance.transcript}</span> `;
+                newContent += `<span class="${className}">${utterance.transcript}</span> `;
             }
             
-            liveTranscription.innerHTML = html;
+            // Combine existing and new content
+            liveTranscription.innerHTML = existingContent + newContent;
             liveTranscription.scrollTop = liveTranscription.scrollHeight;
         }
         
