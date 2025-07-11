@@ -229,8 +229,8 @@ app.post('/api/gemini', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     
-    // Use provided system instruction or default
-    const sysInstruction = systemInstruction || 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.';
+    // Use provided system instruction (client always provides one now)
+    const sysInstruction = systemInstruction;
     
     const result = await geminiModel.generateContentStream({
       contents: conversationContents,

@@ -353,13 +353,27 @@
                     structuredOutput: true
                 };
                 
-                // Add knowledge base to system prompt if available
+                // Build system instruction with or without knowledge base
+                const knowledgeFileName = knowledgeBaseContent ? knowledgeBaseFileName : '(none loaded)';
+                const knowledgeContent = knowledgeBaseContent || '[No content - no knowledge base file has been uploaded]';
+                
                 if (knowledgeBaseContent) {
                     console.log('Knowledge base loaded:', knowledgeBaseFileName, 'Length:', knowledgeBaseContent.length);
-                    requestBody.systemInstruction = `You are a helpful assistant. You have access to the following knowledge base content from "${knowledgeBaseFileName}":\n\n${knowledgeBaseContent}\n\nWhen answering questions, refer to this knowledge base when relevant. If the user asks about something not in the knowledge base, state that it's not discussed in the provided content and use your general knowledge instead.`;
                 } else {
                     console.log('No knowledge base loaded');
                 }
+                
+                requestBody.systemInstruction = `You are a helpful assistant. The user may communicate with you through both typing and voice transcription. When you see messages prefixed with "Transcribed:" it means they spoke the message, and "Typed:" means they typed it. Sometimes messages may contain both transcribed and typed content.
+
+When answering questions, refer to the knowledge base when relevant. If the user asks about something not in the knowledge base, you must state that it's not discussed in the provided content, but then provide an answer based on your general knowledge. For example: "This topic is not discussed in ${knowledgeFileName}, but based on my general knowledge..."
+
+You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.
+
+Be conversational, friendly, and helpful in your responses.
+
+Knowledge base content from "${knowledgeFileName}":
+
+${knowledgeContent}`;
                 
                 const response = await fetch('/api/gemini', {
                     method: 'POST',
