@@ -70,7 +70,7 @@
                 const response = await fetch('/api/gemini', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt, stream: true, structuredOutput: true })
+                    body: JSON.stringify({ prompt: prompt, structuredOutput: true })
                 });
 
                     if (!response.ok) {

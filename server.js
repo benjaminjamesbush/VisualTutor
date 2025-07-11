@@ -175,10 +175,10 @@ app.post('/api/text-to-speech', async (req, res) => {
   }
 });
 
-// Gemini API endpoint - supports both streaming and non-streaming
+// Gemini API endpoint - streaming only
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, contents, stream = false, structuredOutput = false } = req.body;
+    const { prompt, contents, structuredOutput = false } = req.body;
     
     // Support both single prompt and conversation history
     let conversationContents;
@@ -194,7 +194,6 @@ app.post('/api/gemini', async (req, res) => {
     console.log('=== GEMINI API REQUEST ===');
     console.log('Using contents array:', !!contents);
     console.log('Messages count:', conversationContents.length);
-    console.log('Stream mode:', stream);
     console.log('Structured output:', structuredOutput);
     console.log('API Key available:', !!process.env.GEMINI_API_KEY);
     console.log('API Key first 10 chars:', process.env.GEMINI_API_KEY?.substring(0, 10) || 'MISSING');
@@ -225,62 +224,34 @@ app.post('/api/gemini', async (req, res) => {
       thinkingBudget: 0
     };
     
-    if (stream) {
-      // Set headers for streaming response
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      
-      const result = await geminiModel.generateContentStream({
-        contents: conversationContents,
-        systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
-        generationConfig: generationConfig
-      });
-      
-      console.log('=== GEMINI STREAMING STARTED ===');
-      
-      // The result has a stream property that is async iterable
-      for await (const chunk of result.stream) {
-        // Each chunk should have a text() method based on the docs
-        const text = chunk.text();
-        if (text) {
-          // Send SSE (Server-Sent Events) format
-          res.write(`data: ${JSON.stringify({ text })}\n\n`);
-        }
-      }
-      
-      // Send completion event
-      res.write('data: [DONE]\n\n');
-      res.end();
-      
-      console.log('=== GEMINI STREAMING COMPLETE ===');
-    } else {
-      // Non-streaming mode (original implementation)
-      const result = await geminiModel.generateContent({
-        contents: conversationContents,
-        systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
-        generationConfig: generationConfig
-      });
-      const response = result.response;
-      const text = response.text();
-      
-      console.log('=== GEMINI API SUCCESS ===');
-      console.log('Response length:', text.length);
-      console.log('First 100 chars:', text.substring(0, 100));
-      
-      if (structuredOutput) {
-        // Parse and return the JSON response
-        try {
-          const jsonResponse = JSON.parse(text);
-          res.json({ response: jsonResponse });
-        } catch (parseError) {
-          console.error('Failed to parse JSON response:', parseError);
-          res.json({ response: text });
-        }
-      } else {
-        res.json({ response: text });
+    // Set headers for streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    const result = await geminiModel.generateContentStream({
+      contents: conversationContents,
+      systemInstruction: 'You must respond with a JSON object containing a "sentences" array. IMPORTANT: Each item in the array must contain EXACTLY ONE sentence. Never put multiple sentences in a single array item. Split your response so that each sentence (ending with . ! or ?) is its own array element.',
+      generationConfig: generationConfig
+    });
+    
+    console.log('=== GEMINI STREAMING STARTED ===');
+    
+    // The result has a stream property that is async iterable
+    for await (const chunk of result.stream) {
+      // Each chunk should have a text() method based on the docs
+      const text = chunk.text();
+      if (text) {
+        // Send SSE (Server-Sent Events) format
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
+    
+    // Send completion event
+    res.write('data: [DONE]\n\n');
+    res.end();
+    
+    console.log('=== GEMINI STREAMING COMPLETE ===')
   } catch (error) {
     console.error('=== GEMINI API ERROR ===');
     console.error('Error type:', error.constructor.name);
