@@ -83,6 +83,7 @@
         let isTranscribing = false;
         let utterances = new Map();
         let microphoneStream = null;
+        let finalizedTranscription = ''; // Store finalized text separately
         
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
@@ -737,7 +738,7 @@ ${knowledgeContent}`;
             
             // Don't clear transcription - let it persist
             // Only show placeholder if there's truly no content
-            if (utterances.size === 0 && !liveTranscription.textContent.trim()) {
+            if (utterances.size === 0 && !finalizedTranscription) {
                 liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
             }
         }
@@ -764,40 +765,45 @@ ${knowledgeContent}`;
                 return;
             }
             
-            // Store the latest transcript for this utterance
-            utterances.set(utteranceId, {
-                transcript: transcript,
-                is_final: isFinal
-            });
-            
-            // Re-render the transcription display from the utterances map
-            // Only clear "Listening..." text, preserve any existing transcription
-            const waitingSpan = liveTranscription.querySelector('span.interim');
-            if (waitingSpan && waitingSpan.textContent.startsWith('Listening')) {
-                waitingSpan.remove();
-            }
-            
-            const sortedUtterances = Array.from(utterances.entries()).sort((a, b) => a[0] - b[0]);
-            
-            // Get existing transcription content (excluding placeholder text)
-            let existingContent = '';
-            const existingSpans = liveTranscription.querySelectorAll('span.final');
-            existingSpans.forEach(span => {
-                if (!span.textContent.includes('Transcription will appear here') && 
-                    !span.textContent.includes('Listening...')) {
-                    existingContent += span.outerHTML + ' ';
+            if (isFinal) {
+                // If this utterance was previously interim, remove it from the map
+                if (utterances.has(utteranceId)) {
+                    utterances.delete(utteranceId);
                 }
-            });
-            
-            // Build new content from current utterances
-            let newContent = '';
-            for (const [id, utterance] of sortedUtterances) {
-                const className = utterance.is_final ? 'final' : 'interim';
-                newContent += `<span class="${className}">${utterance.transcript}</span> `;
+                // Append finalized text
+                if (finalizedTranscription && !finalizedTranscription.endsWith(' ')) {
+                    finalizedTranscription += ' ';
+                }
+                finalizedTranscription += transcript;
+            } else {
+                // Store or update interim transcription
+                utterances.set(utteranceId, {
+                    transcript: transcript,
+                    is_final: false
+                });
             }
             
-            // Combine existing and new content
-            liveTranscription.innerHTML = existingContent + newContent;
+            // Build display content: finalized text + interim utterances
+            let displayContent = '';
+            
+            // Add finalized transcription
+            if (finalizedTranscription) {
+                displayContent += `<span class="final">${finalizedTranscription}</span>`;
+            }
+            
+            // Add interim utterances (sorted by ID for consistency within current session)
+            const sortedUtterances = Array.from(utterances.entries()).sort((a, b) => a[0] - b[0]);
+            for (const [id, utterance] of sortedUtterances) {
+                if (!utterance.is_final) {
+                    if (displayContent && !displayContent.endsWith(' ')) {
+                        displayContent += ' ';
+                    }
+                    displayContent += `<span class="interim">${utterance.transcript}</span>`;
+                }
+            }
+            
+            // Update display
+            liveTranscription.innerHTML = displayContent || '<span class="interim">Listening...</span>';
             liveTranscription.scrollTop = liveTranscription.scrollHeight;
         }
         
@@ -805,6 +811,7 @@ ${knowledgeContent}`;
         function clearTranscription() {
             liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
             utterances.clear();
+            finalizedTranscription = '';
         }
         
         // Handle page unload
