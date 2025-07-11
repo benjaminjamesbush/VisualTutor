@@ -1,0 +1,14 @@
+Supported MIME types: 
+[
+  "audio/mp4; codecs=\"mp4a.40.2\"",
+  "audio/webm; codecs=\"opus\"",
+  "audio/mp4",
+  "audio/webm",
+  "video/mp4; codecs=\"avc1.42E01E,mp4a.40.2\"",
+  "video/webm; codecs=\"vp8,vorbis\""
+]
+
+Unsupported MIME types:
+[
+  "audio/mpeg"
+]
