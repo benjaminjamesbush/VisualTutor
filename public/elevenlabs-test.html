@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ElevenLabs Test</title>
+    <title>ElevenLabs Text-to-Speech</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         button { margin: 5px; padding: 10px; cursor: pointer; }
@@ -11,20 +11,18 @@
         .error { background: #f8d7da; color: #721c24; }
         .info { background: #cce7ff; color: #004085; }
         textarea { width: 100%; margin: 5px 0; }
-        select { width: 100%; padding: 5px; margin: 5px 0; }
     </style>
 </head>
 <body>
-    <h3>TTS Test</h3>
+    <h3>ElevenLabs Text-to-Speech Test</h3>
     <textarea id="textInput" rows="5" placeholder="Enter text...">Welcome to our advanced text-to-speech demonstration system. This technology represents the cutting edge of artificial intelligence voice synthesis, capable of transforming written words into natural-sounding human speech with remarkable clarity and emotional nuance.
 
 Our streaming implementation significantly reduces latency by delivering audio chunks in real-time as they're generated, rather than waiting for the complete audio file to be processed. This creates a more responsive user experience that's essential for interactive applications, live conversations, and dynamic content generation where every millisecond counts.</textarea>
-    <button onclick="convertTextToSpeechWebSocket()" style="background: #dc3545; color: white;">WebSocket TTS</button>
+    <button onclick="convertTextToSpeech()" style="background: #dc3545; color: white;">Convert to Speech</button>
     <button onclick="getVoices()">Get Voices</button>
     <div id="timer" style="font-weight: bold; margin: 10px 0; color: #333;"></div>
     <div id="status" class="status" style="display: none;"></div>
     <audio id="audioPlayer" controls style="width: 100%; margin: 10px 0; display: none;"></audio>
-    
 
     <script>
         const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
@@ -37,10 +35,21 @@ Our streaming implementation significantly reduces latency by delivering audio c
             statusDiv.style.display = 'block';
         }
 
-
-        async function convertTextToSpeechWebSocket() {
+        async function convertTextToSpeech() {
             const text = document.getElementById('textInput').value.trim();
             if (!text) return showStatus('Please enter text', 'error');
+
+            // Check MediaSource support for MP3
+            if (!('MediaSource' in window)) {
+                showStatus('MediaSource not supported', 'error');
+                return;
+            }
+
+            const mimeType = 'audio/mpeg';
+            if (!MediaSource.isTypeSupported(mimeType)) {
+                showStatus('Browser does not support MP3 with MediaSource', 'error');
+                return;
+            }
 
             // Start timer
             streamStartTime = performance.now();
@@ -48,42 +57,132 @@ Our streaming implementation significantly reduces latency by delivering audio c
             showStatus('WebSocket streaming...', 'info');
 
             try {
-                const response = await fetch('/api/text-to-speech', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
+                const mediaSource = new MediaSource();
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = URL.createObjectURL(mediaSource);
+                audioPlayer.style.display = 'block';
+
+                let sourceBuffer;
+                let queue = [];
+                let isAppending = false;
+                let hasStartedPlaying = false;
+
+                function processQueue() {
+                    if (queue.length > 0 && !isAppending && sourceBuffer && !sourceBuffer.updating) {
+                        isAppending = true;
+                        const chunk = queue.shift();
+                        sourceBuffer.appendBuffer(chunk);
+                    }
+                }
+
+                mediaSource.addEventListener('sourceopen', async () => {
+                    sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+                    
+                    sourceBuffer.addEventListener('updateend', () => {
+                        isAppending = false;
+                        processQueue();
+                        
+                        // Try to start playback after first chunk
+                        if (!hasStartedPlaying && audioPlayer.buffered.length > 0) {
+                            hasStartedPlaying = true;
+                            const timeToFirstPlay = Math.round(performance.now() - streamStartTime);
+                            document.getElementById('timer').textContent = `Timer: ${timeToFirstPlay}ms to first audio (WebSocket)`;
+                            audioPlayer.play().catch(e => console.error('Play error:', e));
+                        }
+                    });
+
+                    // Start fetching and streaming
+                    const response = await fetch('/api/text-to-speech', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
+                    });
+
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+                    const reader = response.body.getReader();
+                    const textDecoder = new TextDecoder();
+                    let buffer = '';
+                    let chunksReceived = 0;
+                    let audioChunksProcessed = 0;
+
+                    const pump = async () => {
+                        try {
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                
+                                if (done) {
+                                    // Process any remaining buffer
+                                    if (buffer.trim()) {
+                                        try {
+                                            const data = JSON.parse(buffer);
+                                            if (data.audio) {
+                                                const audioData = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+                                                queue.push(audioData);
+                                                processQueue();
+                                                audioChunksProcessed++;
+                                            }
+                                        } catch (e) {
+                                            console.error('Final buffer error:', e);
+                                        }
+                                    }
+                                    
+                                    // Wait for queue to empty before ending stream
+                                    const waitForQueue = () => {
+                                        if (queue.length === 0 && !sourceBuffer.updating) {
+                                            mediaSource.endOfStream();
+                                            const totalTime = Math.round(performance.now() - streamStartTime);
+                                            showStatus(`WebSocket streaming complete! (${audioChunksProcessed} audio chunks)`, 'success');
+                                        } else {
+                                            setTimeout(waitForQueue, 100);
+                                        }
+                                    };
+                                    waitForQueue();
+                                    break;
+                                }
+
+                                chunksReceived++;
+                                const text = textDecoder.decode(value, { stream: true });
+                                buffer += text;
+
+                                // Process newline-delimited JSON
+                                const lines = buffer.split('\n');
+                                buffer = lines.pop() || '';
+                                
+                                for (const line of lines) {
+                                    if (!line.trim()) continue;
+                                    try {
+                                        const data = JSON.parse(line.trim());
+                                        if (data.audio) {
+                                            audioChunksProcessed++;
+                                            
+                                            // Convert base64 to Uint8Array
+                                            const audioData = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+                                            
+                                            // Add to queue for MediaSource
+                                            queue.push(audioData);
+                                            processQueue();
+                                        }
+                                    } catch (e) {
+                                        console.error('JSON parse error:', e);
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Streaming error:', error);
+                            showStatus(`Streaming error: ${error.message}`, 'error');
+                        }
+                    };
+
+                    pump();
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                const audioPlayer = document.getElementById('audioPlayer');
-                const audioBlob = await response.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-                
-                audioPlayer.src = audioUrl;
-                audioPlayer.style.display = 'block';
-                
-                // Set up event listener to measure time to audio start
-                audioPlayer.onloadeddata = () => {
-                    const timeToStart = Math.round(performance.now() - streamStartTime);
-                    document.getElementById('timer').textContent = `Timer: ${timeToStart}ms WebSocket to audio ready`;
-                };
-                
-                audioPlayer.onplay = () => {
-                    const timeToPlay = Math.round(performance.now() - streamStartTime);
-                    document.getElementById('timer').textContent = `Timer: ${timeToPlay}ms WebSocket to playback start`;
-                };
-                
-                audioPlayer.play();
-                
-                showStatus('WebSocket streaming complete!', 'success');
             } catch (error) {
                 showStatus(`WebSocket Error: ${error.message}`, 'error');
                 document.getElementById('timer').textContent = 'Timer: WebSocket error occurred';
                 console.error('WebSocket streaming error:', error);
             }
         }
-
 
         async function getVoices() {
             showStatus('Fetching voices...', 'info');

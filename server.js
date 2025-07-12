@@ -95,7 +95,7 @@ app.post('/api/text-to-speech', async (req, res) => {
       }
     });
 
-    // Set headers for streaming response
+    // Set headers for streaming MP3 audio response
     res.set({
       'Content-Type': 'audio/mpeg',
       'Transfer-Encoding': 'chunked',
@@ -103,9 +103,10 @@ app.post('/api/text-to-speech', async (req, res) => {
       'Connection': 'keep-alive'
     });
 
+    let chunksReceived = 0;
+    let chunksSent = 0;
+    
     ws.on('open', () => {
-      console.log('WebSocket connected to ElevenLabs');
-      
       // Send initial configuration (without auto_mode for manual control)
       const config = {
         text: " ",  // Space to initialize
@@ -119,26 +120,26 @@ app.post('/api/text-to-speech', async (req, res) => {
       };
       
       ws.send(JSON.stringify(config));
-      
-      // Send the actual text
       ws.send(JSON.stringify({ text: text }));
-      
-      // Send empty string to signal end
       ws.send(JSON.stringify({ text: "" }));
     });
 
     ws.on('message', (data) => {
       try {
+        chunksReceived++;
         const response = JSON.parse(data.toString());
         
         if (response.audio) {
-          // Convert base64 audio to buffer and stream to client
+          // ElevenLabs sends base64 audio - we need to check if it's PCM or MP3
           const audioBuffer = Buffer.from(response.audio, 'base64');
-          res.write(audioBuffer);
+          chunksSent++;
+          
+          // Send as JSON with newline delimiter for proper chunk boundaries
+          const jsonResponse = JSON.stringify({ audio: response.audio }) + '\n';
+          res.write(jsonResponse);
         }
         
         if (response.isFinal) {
-          console.log('WebSocket TTS generation complete');
           res.end();
           ws.close();
         }
@@ -156,7 +157,6 @@ app.post('/api/text-to-speech', async (req, res) => {
     });
 
     ws.on('close', () => {
-      console.log('WebSocket connection closed');
       if (!res.finished) {
         res.end();
       }
