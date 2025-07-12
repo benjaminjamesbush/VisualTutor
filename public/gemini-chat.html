@@ -76,6 +76,8 @@
         let knowledgeBaseFileName = '';
         let currentAbortController = null;
         let enterPressCount = 0;
+        let isAudioPlaying = false;
+        let currentAudioElement = null;
         
         // Transcription variables
         let ws = null;
@@ -235,6 +237,26 @@
                         currentAbortController.abort();
                         enterPressCount = 0;
                     }
+                    // Stop audio if playing
+                    if (isAudioPlaying && currentAudioElement) {
+                        currentAudioElement.pause();
+                        currentAudioElement.currentTime = 0;
+                        isAudioPlaying = false;
+                        currentAudioElement = null;
+                        // Enable input after interruption
+                        enableUserInput();
+                    }
+                } else if (isAudioPlaying) {
+                    // Stop audio playback if Enter is pressed while audio is playing
+                    e.preventDefault();
+                    if (currentAudioElement) {
+                        currentAudioElement.pause();
+                        currentAudioElement.currentTime = 0;
+                        isAudioPlaying = false;
+                        currentAudioElement = null;
+                        // Enable input after interruption
+                        enableUserInput();
+                    }
                 } else if (document.activeElement === userInput) {
                     e.preventDefault();
                     const content = userInput.value;
@@ -269,11 +291,22 @@
                     }
                 }
             } else if (e.key === 'Escape') {
-                // Toggle mute checkbox on Esc key
-                e.preventDefault();
-                muteCheckbox.checked = !muteCheckbox.checked;
-                // Trigger change event to call handleMuteChange
-                muteCheckbox.dispatchEvent(new Event('change'));
+                // If audio is playing, stop it
+                if (isAudioPlaying && currentAudioElement) {
+                    e.preventDefault();
+                    currentAudioElement.pause();
+                    currentAudioElement.currentTime = 0;
+                    isAudioPlaying = false;
+                    currentAudioElement = null;
+                    // Enable input after interruption
+                    enableUserInput();
+                } else {
+                    // Otherwise toggle mute checkbox
+                    e.preventDefault();
+                    muteCheckbox.checked = !muteCheckbox.checked;
+                    // Trigger change event to call handleMuteChange
+                    muteCheckbox.dispatchEvent(new Event('change'));
+                }
             } else {
                 // Reset counter on any non-Enter key
                 enterPressCount = 0;
@@ -294,13 +327,101 @@
             if (role === 'user') {
                 messageDiv.textContent = content;
             } else {
-                const pre = document.createElement('pre');
-                pre.textContent = content;
-                messageDiv.appendChild(pre);
+                // Parse JSON and render formatted content
+                try {
+                    const response = JSON.parse(content);
+                    
+                    // Create outline container
+                    if (response.outline) {
+                        const outlineDiv = document.createElement('div');
+                        outlineDiv.style.marginBottom = '10px';
+                        // Convert markdown to HTML
+                        outlineDiv.innerHTML = convertMarkdownToHTML(response.outline);
+                        messageDiv.appendChild(outlineDiv);
+                    }
+                    
+                    // Add horizontal line
+                    const hr = document.createElement('hr');
+                    hr.style.margin = '10px 0';
+                    hr.style.borderTop = '1px solid #ddd';
+                    messageDiv.appendChild(hr);
+                    
+                    // Add concatenated sentences
+                    if (response.sentences && Array.isArray(response.sentences)) {
+                        const sentencesDiv = document.createElement('div');
+                        sentencesDiv.textContent = response.sentences.join(' ');
+                        messageDiv.appendChild(sentencesDiv);
+                    }
+                } catch (e) {
+                    // Fallback to showing raw content if not valid JSON
+                    const pre = document.createElement('pre');
+                    pre.textContent = content;
+                    messageDiv.appendChild(pre);
+                }
             }
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Simple markdown to HTML converter for outlines
+        function convertMarkdownToHTML(markdown) {
+            // Convert headers
+            let html = markdown.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+            
+            // Convert lists
+            const lines = html.split('\n');
+            let inList = false;
+            let listLevel = 0;
+            let processedLines = [];
+            
+            for (let line of lines) {
+                const match = line.match(/^(\s*)- (.+)$/);
+                if (match) {
+                    const indent = match[1].length;
+                    const content = match[2];
+                    const level = Math.floor(indent / 2);
+                    
+                    if (!inList) {
+                        processedLines.push('<ul>');
+                        inList = true;
+                        listLevel = level;
+                    } else if (level > listLevel) {
+                        processedLines.push('<ul>');
+                        listLevel = level;
+                    } else if (level < listLevel) {
+                        for (let i = listLevel; i > level; i--) {
+                            processedLines.push('</ul>');
+                        }
+                        listLevel = level;
+                    }
+                    
+                    processedLines.push(`<li>${content}</li>`);
+                } else {
+                    if (inList && line.trim() === '') {
+                        // Empty line, might be end of list
+                        continue;
+                    } else if (inList && !line.match(/^\s/)) {
+                        // Non-indented line, close all lists
+                        for (let i = listLevel; i >= 0; i--) {
+                            processedLines.push('</ul>');
+                        }
+                        inList = false;
+                        listLevel = 0;
+                    }
+                    processedLines.push(line);
+                }
+            }
+            
+            // Close any remaining lists
+            if (inList) {
+                for (let i = listLevel; i >= 0; i--) {
+                    processedLines.push('</ul>');
+                }
+            }
+            
+            return processedLines.join('\n');
         }
         
         async function sendMessage() {
@@ -363,6 +484,36 @@
             audioElement.style.width = '100%';
             audioElement.style.marginTop = '10px';
             audioElement.style.display = 'none'; // Hidden until TTS starts
+            
+            // Add event listeners for audio playback
+            audioElement.addEventListener('play', () => {
+                console.log('Audio started playing');
+                isAudioPlaying = true;
+                currentAudioElement = audioElement;
+                // Disable user input while audio is playing
+                disableUserInput();
+            });
+            
+            audioElement.addEventListener('pause', () => {
+                console.log('Audio paused');
+                isAudioPlaying = false;
+                if (currentAudioElement === audioElement) {
+                    currentAudioElement = null;
+                }
+                // Enable user input when audio stops
+                enableUserInput();
+            });
+            
+            audioElement.addEventListener('ended', () => {
+                console.log('Audio playback ended');
+                isAudioPlaying = false;
+                if (currentAudioElement === audioElement) {
+                    currentAudioElement = null;
+                }
+                // Enable user input when audio ends
+                enableUserInput();
+            });
+            
             assistantDiv.appendChild(audioElement);
             
             chatContainer.appendChild(assistantDiv);
@@ -518,8 +669,41 @@ ${knowledgeContent}`;
                                             timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
                                         }
                                         fullResponse += parsed.text;
-                                        // Show the raw response (which should be JSON)
-                                        pre.textContent = fullResponse;
+                                        // Try to parse and render the response
+                                        try {
+                                            const responseObj = JSON.parse(fullResponse);
+                                            assistantDiv.innerHTML = ''; // Clear previous content
+                                            
+                                            // Create outline container
+                                            if (responseObj.outline) {
+                                                const outlineDiv = document.createElement('div');
+                                                outlineDiv.style.marginBottom = '10px';
+                                                outlineDiv.innerHTML = convertMarkdownToHTML(responseObj.outline);
+                                                assistantDiv.appendChild(outlineDiv);
+                                            }
+                                            
+                                            // Add horizontal line
+                                            const hr = document.createElement('hr');
+                                            hr.style.margin = '10px 0';
+                                            hr.style.borderTop = '1px solid #ddd';
+                                            assistantDiv.appendChild(hr);
+                                            
+                                            // Add concatenated sentences
+                                            if (responseObj.sentences && Array.isArray(responseObj.sentences)) {
+                                                const sentencesDiv = document.createElement('div');
+                                                sentencesDiv.textContent = responseObj.sentences.join(' ');
+                                                assistantDiv.appendChild(sentencesDiv);
+                                            }
+                                            
+                                            // Re-append audio element
+                                            assistantDiv.appendChild(audioElement);
+                                        } catch (e) {
+                                            // If JSON is incomplete, show raw response
+                                            pre.textContent = fullResponse;
+                                            if (!assistantDiv.contains(pre)) {
+                                                assistantDiv.insertBefore(pre, audioElement);
+                                            }
+                                        }
                                         chatContainer.scrollTop = chatContainer.scrollHeight;
                                     } else if (parsed.cacheInfo) {
                                         // Cache info commented out until cachedContentTokenCount is fixed
@@ -551,8 +735,32 @@ ${knowledgeContent}`;
                         const fixedResponse = fixIncompleteJSON(fullResponse);
                         console.log('TTS: Fixed response structure:', fixedResponse);
                         
-                        // Update the display with the fixed JSON
-                        pre.textContent = JSON.stringify(fixedResponse, null, 2);
+                        // Update the display with formatted content
+                        assistantDiv.innerHTML = ''; // Clear previous content
+                        
+                        // Create outline container
+                        if (fixedResponse.outline) {
+                            const outlineDiv = document.createElement('div');
+                            outlineDiv.style.marginBottom = '10px';
+                            outlineDiv.innerHTML = convertMarkdownToHTML(fixedResponse.outline);
+                            assistantDiv.appendChild(outlineDiv);
+                        }
+                        
+                        // Add horizontal line
+                        const hr = document.createElement('hr');
+                        hr.style.margin = '10px 0';
+                        hr.style.borderTop = '1px solid #ddd';
+                        assistantDiv.appendChild(hr);
+                        
+                        // Add concatenated sentences
+                        if (fixedResponse.sentences && Array.isArray(fixedResponse.sentences)) {
+                            const sentencesDiv = document.createElement('div');
+                            sentencesDiv.textContent = fixedResponse.sentences.join(' ');
+                            assistantDiv.appendChild(sentencesDiv);
+                        }
+                        
+                        // Re-append audio element
+                        assistantDiv.appendChild(audioElement);
                         
                         // Add the interrupted response to conversation history
                         conversationHistory.push({
@@ -579,7 +787,23 @@ ${knowledgeContent}`;
                     } else {
                         // No response received before interruption
                         const emptyResponse = { sentences: ['(Response interrupted before any content was received)'] };
-                        pre.textContent = JSON.stringify(emptyResponse, null, 2);
+                        
+                        assistantDiv.innerHTML = ''; // Clear previous content
+                        
+                        // Add horizontal line
+                        const hr = document.createElement('hr');
+                        hr.style.margin = '10px 0';
+                        hr.style.borderTop = '1px solid #ddd';
+                        assistantDiv.appendChild(hr);
+                        
+                        // Add message
+                        const sentencesDiv = document.createElement('div');
+                        sentencesDiv.textContent = emptyResponse.sentences.join(' ');
+                        assistantDiv.appendChild(sentencesDiv);
+                        
+                        // Re-append audio element
+                        assistantDiv.appendChild(audioElement);
+                        
                         conversationHistory.push({
                             role: 'model',
                             parts: [{ text: JSON.stringify(emptyResponse) }]
@@ -590,25 +814,23 @@ ${knowledgeContent}`;
                     console.error('Error:', error);
                     showStatus(`Error: ${error.message}`, 'error');
                     timerElement.textContent = 'Timer: Request failed';
-                    pre.textContent = `Error: ${error.message}`;
+                    
+                    assistantDiv.innerHTML = ''; // Clear previous content
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.color = '#721c24';
+                    errorDiv.textContent = `Error: ${error.message}`;
+                    assistantDiv.appendChild(errorDiv);
+                    assistantDiv.appendChild(audioElement);
                 }
             } finally {
                 // Re-enable input and clear abort controller
                 isStreaming = false;
-                userInput.disabled = false;
-                userInput.placeholder = 'Type your message... (press Enter 3 times to send)';
-                userInput.focus();
                 currentAbortController = null;
                 enterPressCount = 0;
                 
-                // Restart transcription if unmuted
-                if (!muteCheckbox.checked) {
-                    console.log('Restarting transcription after response');
-                    // Add longer delay to allow server cleanup
-                    setTimeout(() => {
-                        console.log('Starting transcription after delay');
-                        startTranscription();
-                    }, 1000);
+                // Only enable input if audio is not playing
+                if (!isAudioPlaying) {
+                    enableUserInput();
                 }
             }
         }
@@ -922,7 +1144,7 @@ ${knowledgeContent}`;
             console.log('First 100 chars:', text.substring(0, 100));
             console.log('Audio element:', audioElement);
             
-            const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+            const DEFAULT_VOICE_ID = "raMcNf2S8wCmuaBcyI6E";
             
             if (!text || !audioElement) {
                 console.error('TTS Error: Missing text or audio element');
@@ -1122,6 +1344,35 @@ ${knowledgeContent}`;
         }
         
         // Handle page unload
+        // Helper function to disable user input
+        function disableUserInput() {
+            userInput.disabled = true;
+            userInput.placeholder = 'Audio playing... Press Enter or Escape to interrupt';
+            // Stop transcription if running
+            if (isTranscribing) {
+                stopTranscription();
+            }
+        }
+        
+        // Helper function to enable user input
+        function enableUserInput() {
+            if (!isStreaming && !isAudioPlaying) {
+                userInput.disabled = false;
+                userInput.placeholder = 'Type your message... (press Enter 3 times to send)';
+                userInput.focus();
+                
+                // Restart transcription if unmuted
+                if (!muteCheckbox.checked) {
+                    console.log('Restarting transcription after audio/stream ends');
+                    // Add longer delay to allow server cleanup
+                    setTimeout(() => {
+                        console.log('Starting transcription after delay');
+                        startTranscription();
+                    }, 1000);
+                }
+            }
+        }
+        
         window.addEventListener('beforeunload', () => {
             if (isTranscribing) {
                 stopTranscription();

@@ -84,7 +84,7 @@ app.post('/api/text-to-speech', async (req, res) => {
   console.log('Request body:', req.body);
   
   try {
-    const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
+    const { text, voiceId = "raMcNf2S8wCmuaBcyI6E" } = req.body;
     console.log('TTS Text length:', text?.length || 0);
     console.log('TTS Voice ID:', voiceId);
     
@@ -93,7 +93,7 @@ app.post('/api/text-to-speech', async (req, res) => {
     }
 
     // Connect to ElevenLabs WebSocket
-    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_flash_v2_5&enable_logging=true`;
+    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_turbo_v2_5&enable_logging=true`;
     const ws = new WebSocket(wsUrl, {
       headers: {
         'xi-api-key': process.env.ELEVENLABS_API_KEY
@@ -117,8 +117,11 @@ app.post('/api/text-to-speech', async (req, res) => {
       const config = {
         text: " ",  // Space to initialize
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5
+          stability: 0.25,
+          similarity_boost: 0.7,
+          style: 0.8,
+          use_speaker_boost: true,
+          speed: 1.15
         },
         generation_config: {
           chunk_length_schedule: [120, 160, 250, 400] // Manual chunking schedule
