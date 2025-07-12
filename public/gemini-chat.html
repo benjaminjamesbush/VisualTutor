@@ -356,6 +356,15 @@
             assistantDiv.className = 'message assistant-message';
             const pre = document.createElement('pre');
             assistantDiv.appendChild(pre);
+            
+            // Create audio element for TTS
+            const audioElement = document.createElement('audio');
+            audioElement.controls = true;
+            audioElement.style.width = '100%';
+            audioElement.style.marginTop = '10px';
+            audioElement.style.display = 'none'; // Hidden until TTS starts
+            assistantDiv.appendChild(audioElement);
+            
             chatContainer.appendChild(assistantDiv);
             
             let fullResponse = '';
@@ -428,6 +437,68 @@ ${knowledgeContent}`;
                                     role: 'model',
                                     parts: [{ text: fullResponse }]
                                 });
+                                
+                                // Trigger TTS conversion
+                                console.log('=== TTS TRIGGER AFTER [DONE] ===');
+                                console.log('Full response to parse:', fullResponse);
+                                
+                                try {
+                                    const parsedResponse = JSON.parse(fullResponse);
+                                    console.log('TTS: Successfully parsed JSON:', parsedResponse);
+                                    
+                                    const sentences = parsedResponse.sentences || [];
+                                    console.log('TTS: Sentences array count:', sentences.length);
+                                    console.log('TTS: Sentences:', sentences);
+                                    
+                                    if (sentences.length > 0) {
+                                        const textForTTS = sentences.join(' ');
+                                        console.log('TTS: Concatenated text for TTS:', textForTTS);
+                                        console.log('TTS: Audio element for this response:', audioElement);
+                                        
+                                        // Test async operations in streaming context
+                                        console.log('TTS: Testing async operations in streaming context...');
+                                        
+                                        // Test 1: setTimeout works?
+                                        setTimeout(() => {
+                                            console.log('TTS: setTimeout executed successfully');
+                                        }, 100);
+                                        
+                                        // Test 2: Promise resolution works?
+                                        Promise.resolve().then(() => {
+                                            console.log('TTS: Promise.resolve executed successfully');
+                                        });
+                                        
+                                        // Test 3: Fetch to a different endpoint?
+                                        fetch('/').then(() => {
+                                            console.log('TTS: Fetch to root path succeeded');
+                                        }).catch(e => {
+                                            console.log('TTS: Fetch to root path failed:', e);
+                                        });
+                                        
+                                        // Test 4: XMLHttpRequest works?
+                                        // Commenting out to see if this is blocking Test 5
+                                        // const xhr = new XMLHttpRequest();
+                                        // xhr.open('GET', '/', true);
+                                        // xhr.onload = () => console.log('TTS: XMLHttpRequest succeeded');
+                                        // xhr.onerror = () => console.log('TTS: XMLHttpRequest failed');
+                                        // xhr.send();
+                                        
+                                        // Test 5: Direct fetch to TTS endpoint
+                                        // Removed - this hanging fetch might be blocking subsequent TTS calls
+                                        
+                                        // Start TTS conversion (deferred to break out of streaming context)
+                                        // Minimum delay needed: 625ms (works), 562ms or less hangs
+                                        setTimeout(() => {
+                                            console.log('TTS: Deferred execution starting after 625ms delay...');
+                                            convertTextToSpeech(textForTTS, audioElement);
+                                        }, 625);
+                                    } else {
+                                        console.warn('TTS: No sentences found in response');
+                                    }
+                                } catch (error) {
+                                    console.error('TTS: Error parsing response for TTS:', error);
+                                    console.error('TTS: Response that failed to parse:', fullResponse);
+                                }
                             } else {
                                 try {
                                     const parsed = JSON.parse(data);
@@ -465,7 +536,10 @@ ${knowledgeContent}`;
                     
                     // Fix incomplete JSON and add to conversation history
                     if (fullResponse) {
+                        console.log('=== TTS TRIGGER FOR INTERRUPTED RESPONSE ===');
+                        console.log('TTS: Processing interrupted response');
                         const fixedResponse = fixIncompleteJSON(fullResponse);
+                        console.log('TTS: Fixed response structure:', fixedResponse);
                         
                         // Update the display with the fixed JSON
                         pre.textContent = JSON.stringify(fixedResponse, null, 2);
@@ -475,6 +549,23 @@ ${knowledgeContent}`;
                             role: 'model',
                             parts: [{ text: JSON.stringify(fixedResponse) }]
                         });
+                        
+                        // Trigger TTS for interrupted response
+                        const sentences = fixedResponse.sentences || [];
+                        console.log('TTS: Sentences from interrupted response:', sentences);
+                        
+                        if (sentences.length > 0) {
+                            const textForTTS = sentences.join(' ');
+                            console.log('TTS: Concatenated text for interrupted TTS:', textForTTS);
+                            console.log('TTS: Audio element for interrupted response:', audioElement);
+                            
+                            // Start TTS conversion (deferred to break out of streaming context)
+                            setTimeout(() => {
+                                convertTextToSpeech(textForTTS, audioElement);
+                            }, 0);
+                        } else {
+                            console.warn('TTS: No sentences found in interrupted response');
+                        }
                     } else {
                         // No response received before interruption
                         const emptyResponse = { sentences: ['(Response interrupted before any content was received)'] };
@@ -547,7 +638,7 @@ ${knowledgeContent}`;
             }
             
             try {
-                console.log(`Starting transcription... (attempt ${retryCount + 1})`);
+                console.log(`[STT WebSocket] Starting transcription... (attempt ${retryCount + 1})`);
                 showStatus('Connecting to transcription server...', 'info');
                 
                 // Don't clear transcription content - preserve existing text
@@ -560,13 +651,13 @@ ${knowledgeContent}`;
                 // Connect to server WebSocket
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.hostname}:3000/api/speech-to-text`;
-                console.log('Attempting to connect to:', wsUrl);
+                console.log('[STT WebSocket] Attempting to connect to:', wsUrl);
                 
                 ws = new WebSocket(wsUrl);
-                console.log('WebSocket created, state:', ws.readyState);
+                console.log('[STT WebSocket] Created, state:', ws.readyState);
                 
                 ws.onopen = () => {
-                    console.log('WebSocket opened successfully');
+                    console.log('[STT WebSocket] Opened successfully');
                     showStatus('Connected to transcription server', 'success');
                     
                     // Send configuration to start Deepgram connection
@@ -581,7 +672,7 @@ ${knowledgeContent}`;
                 };
                 
                 ws.onmessage = (event) => {
-                    console.log('Received message from server:', event.data);
+                    // console.log('Received message from server:', event.data);
                     try {
                         const data = JSON.parse(event.data);
                         
@@ -603,8 +694,8 @@ ${knowledgeContent}`;
                 };
                 
                 ws.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                    console.error('WebSocket state on error:', ws.readyState);
+                    console.error('[STT WebSocket] Error:', error);
+                    console.error('[STT WebSocket] State on error:', ws.readyState);
                     
                     // Retry with exponential backoff
                     if (retryCount < 3) {
@@ -632,7 +723,7 @@ ${knowledgeContent}`;
                 };
                 
                 ws.onclose = (event) => {
-                    console.log('WebSocket closed. Code:', event.code, 'Reason:', event.reason);
+                    console.log('[STT WebSocket] Closed. Code:', event.code, 'Reason:', event.reason);
                     console.log('Clean close?', event.wasClean);
                     
                     // Clean up WebSocket reference
@@ -689,7 +780,7 @@ ${knowledgeContent}`;
                 
                 microphone.ondataavailable = (event) => {
                     if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-                        console.log('Sending audio chunk:', event.data.size, 'bytes');
+                        // console.log('Sending audio chunk:', event.data.size, 'bytes');
                         ws.send(event.data);
                     }
                 };
@@ -812,6 +903,212 @@ ${knowledgeContent}`;
             liveTranscription.innerHTML = '<span class="interim">Transcription will appear here when unmuted...</span>';
             utterances.clear();
             finalizedTranscription = '';
+        }
+        
+        // Convert text to speech using ElevenLabs
+        async function convertTextToSpeech(text, audioElement) {
+            console.log('=== TTS CONVERSION STARTED ===');
+            console.log('Text length:', text.length);
+            console.log('First 100 chars:', text.substring(0, 100));
+            console.log('Audio element:', audioElement);
+            
+            const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+            
+            if (!text || !audioElement) {
+                console.error('TTS Error: Missing text or audio element');
+                return;
+            }
+            
+            // Check MediaSource support for MP3
+            if (!('MediaSource' in window)) {
+                console.error('TTS Error: MediaSource not supported');
+                showStatus('Text-to-speech not supported in this browser', 'error');
+                return;
+            }
+            
+            const mimeType = 'audio/mpeg';
+            if (!MediaSource.isTypeSupported(mimeType)) {
+                console.error('TTS Error: Browser does not support MP3 with MediaSource');
+                showStatus('Browser does not support MP3 streaming', 'error');
+                return;
+            }
+            
+            console.log('TTS: MediaSource supported, starting stream...');
+            
+            // Test fetch before MediaSource
+            // Removed - this hanging fetch might be blocking subsequent TTS calls
+            
+            try {
+                const mediaSource = new MediaSource();
+                audioElement.src = URL.createObjectURL(mediaSource);
+                audioElement.style.display = 'block';
+                
+                let sourceBuffer;
+                let queue = [];
+                let isAppending = false;
+                let hasStartedPlaying = false;
+                
+                function processQueue() {
+                    if (queue.length > 0 && !isAppending && sourceBuffer && !sourceBuffer.updating) {
+                        isAppending = true;
+                        const chunk = queue.shift();
+                        sourceBuffer.appendBuffer(chunk);
+                    }
+                }
+                
+                mediaSource.addEventListener('sourceopen', async () => {
+                    console.log('TTS: MediaSource opened');
+                    sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+                    
+                    sourceBuffer.addEventListener('updateend', () => {
+                        isAppending = false;
+                        processQueue();
+                        
+                        // Try to start playback after first chunk
+                        if (!hasStartedPlaying && audioElement.buffered.length > 0) {
+                            hasStartedPlaying = true;
+                            console.log('TTS: First chunk buffered, attempting play...');
+                            audioElement.play()
+                                .then(() => {
+                                    console.log('TTS: Playback started successfully');
+                                })
+                                .catch(e => {
+                                    console.error('TTS: Play error:', e);
+                                    console.error('TTS: Play error details:', {
+                                        name: e.name,
+                                        message: e.message,
+                                        stack: e.stack
+                                    });
+                                    showStatus('Click play button to hear response', 'info');
+                                });
+                        }
+                    });
+                    
+                    // Start fetching and streaming
+                    console.log('TTS: Sending request to /api/text-to-speech');
+                    console.log('TTS: Request body:', { text: text.substring(0, 50) + '...', voiceId: DEFAULT_VOICE_ID });
+                    
+                    console.log('TTS: audioElement check:', audioElement);
+                    console.log('TTS: audioElement in DOM?', document.contains(audioElement));
+                    console.log('TTS: About to call fetch()...');
+                    let response;
+                    try {
+                        response = await fetch('/api/text-to-speech', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: text, voiceId: DEFAULT_VOICE_ID })
+                        });
+                        console.log('TTS: Fetch completed, got response:', response);
+                        console.log('TTS: Response status:', response.status);
+                        console.log('TTS: Response statusText:', response.statusText);
+                        console.log('TTS: Response headers:', Object.fromEntries(response.headers.entries()));
+                        console.log('TTS: Response type:', response.type);
+                        console.log('TTS: Response url:', response.url);
+                        
+                        if (!response.ok) {
+                            console.error('TTS: Server returned an HTTP error!', response.status, response.statusText);
+                            throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                        }
+                        
+                        console.log('TTS: Response OK, proceeding to read stream');
+                    } catch (error) {
+                        console.error('TTS: Fetch threw an error:', error);
+                        console.error('TTS: Error name:', error.name);
+                        console.error('TTS: Error message:', error.message);
+                        console.error('TTS: Error stack:', error.stack);
+                        throw error;
+                    }
+                    
+                    const reader = response.body.getReader();
+                    const textDecoder = new TextDecoder();
+                    let buffer = '';
+                    let audioChunksProcessed = 0;
+                    
+                    console.log('TTS: Starting to read stream...');
+                    
+                    const pump = async () => {
+                        try {
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                
+                                if (done) {
+                                    console.log('TTS: Stream complete, processing final buffer...');
+                                    // Process any remaining buffer
+                                    if (buffer.trim()) {
+                                        try {
+                                            const data = JSON.parse(buffer);
+                                            if (data.audio) {
+                                                const audioData = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+                                                console.log('TTS: Final chunk size:', audioData.byteLength);
+                                                queue.push(audioData);
+                                                processQueue();
+                                                audioChunksProcessed++;
+                                            }
+                                        } catch (e) {
+                                            console.error('TTS: Final buffer parse error:', e);
+                                        }
+                                    }
+                                    
+                                    // Wait for queue to empty before ending stream
+                                    const waitForQueue = () => {
+                                        if (queue.length === 0 && !sourceBuffer.updating) {
+                                            mediaSource.endOfStream();
+                                            console.log(`TTS: Streaming complete! Processed ${audioChunksProcessed} audio chunks`);
+                                            showStatus('Speech synthesis complete', 'success');
+                                        } else {
+                                            setTimeout(waitForQueue, 100);
+                                        }
+                                    };
+                                    waitForQueue();
+                                    break;
+                                }
+                                
+                                const text = textDecoder.decode(value, { stream: true });
+                                buffer += text;
+                                
+                                // Process newline-delimited JSON
+                                const lines = buffer.split('\n');
+                                buffer = lines.pop() || '';
+                                
+                                for (const line of lines) {
+                                    if (!line.trim()) continue;
+                                    try {
+                                        const data = JSON.parse(line.trim());
+                                        if (data.audio) {
+                                            audioChunksProcessed++;
+                                            
+                                            // Convert base64 to Uint8Array
+                                            const audioData = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+                                            console.log(`TTS: Audio chunk ${audioChunksProcessed} size:`, audioData.byteLength);
+                                            
+                                            // Add to queue for MediaSource
+                                            queue.push(audioData);
+                                            processQueue();
+                                        }
+                                    } catch (e) {
+                                        console.error('TTS: JSON parse error:', e);
+                                        console.error('TTS: Failed to parse line:', line);
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error('TTS: Streaming error:', error);
+                            showStatus(`Streaming error: ${error.message}`, 'error');
+                        }
+                    };
+                    
+                    pump();
+                });
+                
+            } catch (error) {
+                console.error('TTS: Conversion error:', error);
+                console.error('TTS: Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                showStatus(`Text-to-speech error: ${error.message}`, 'error');
+            }
         }
         
         // Handle page unload

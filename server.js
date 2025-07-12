@@ -80,8 +80,13 @@ app.get('/api/voices', async (req, res) => {
 
 // WebSocket TTS endpoint for real-time streaming
 app.post('/api/text-to-speech', async (req, res) => {
+  console.log('=== TTS REQUEST RECEIVED ===');
+  console.log('Request body:', req.body);
+  
   try {
     const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body;
+    console.log('TTS Text length:', text?.length || 0);
+    console.log('TTS Voice ID:', voiceId);
     
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
@@ -95,9 +100,9 @@ app.post('/api/text-to-speech', async (req, res) => {
       }
     });
 
-    // Set headers for streaming MP3 audio response
+    // Set headers for streaming JSON response with base64 audio
     res.set({
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': 'application/json',
       'Transfer-Encoding': 'chunked',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive'
@@ -107,6 +112,7 @@ app.post('/api/text-to-speech', async (req, res) => {
     let chunksSent = 0;
     
     ws.on('open', () => {
+      console.log('TTS: WebSocket connected to ElevenLabs');
       // Send initial configuration (without auto_mode for manual control)
       const config = {
         text: " ",  // Space to initialize
@@ -119,20 +125,24 @@ app.post('/api/text-to-speech', async (req, res) => {
         }
       };
       
+      console.log('TTS: Sending config to ElevenLabs');
       ws.send(JSON.stringify(config));
       ws.send(JSON.stringify({ text: text }));
       ws.send(JSON.stringify({ text: "" }));
+      console.log('TTS: Text sent to ElevenLabs for synthesis');
     });
 
     ws.on('message', (data) => {
       try {
         chunksReceived++;
+        console.log(`TTS: Received message ${chunksReceived} from ElevenLabs`);
         const response = JSON.parse(data.toString());
         
         if (response.audio) {
           // ElevenLabs sends base64 audio - we need to check if it's PCM or MP3
           const audioBuffer = Buffer.from(response.audio, 'base64');
           chunksSent++;
+          console.log(`TTS: Sending audio chunk ${chunksSent} to client, size: ${response.audio.length}`);
           
           // Send as JSON with newline delimiter for proper chunk boundaries
           const jsonResponse = JSON.stringify({ audio: response.audio }) + '\n';
@@ -140,6 +150,7 @@ app.post('/api/text-to-speech', async (req, res) => {
         }
         
         if (response.isFinal) {
+          console.log('TTS: Received final message, closing connection');
           res.end();
           ws.close();
         }
@@ -149,14 +160,17 @@ app.post('/api/text-to-speech', async (req, res) => {
     });
 
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      console.error('TTS: WebSocket error:', error);
+      console.error('TTS: Error details:', error.message);
       if (!res.headersSent) {
         res.status(500).json({ error: 'WebSocket error: ' + error.message });
       }
       ws.close();
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
+      console.log(`TTS: WebSocket to ElevenLabs closed. Code: ${code}, Reason: ${reason}`);
+      console.log(`TTS: Final stats - Chunks received: ${chunksReceived}, Chunks sent: ${chunksSent}`);
       if (!res.finished) {
         res.end();
       }
