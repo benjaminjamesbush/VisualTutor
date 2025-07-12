@@ -3,70 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>Gemini 2.5 Flash - Chatbot Interface</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; display: flex; flex-direction: column; height: calc(100vh - 40px); }
-        h3 { margin-top: 0; }
-        .chat-container { flex: 1; overflow-y: auto; border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; background: #f5f5f5; }
-        .message { margin: 10px 0; padding: 10px 15px; border-radius: 5px; font-size: 16px; }
-        .user-message { background: #e3f2fd; margin-left: 20%; text-align: right; }
-        .assistant-message { background: #f5f5f5; margin-right: 20%; border: 1px solid #ddd; }
-        .assistant-message pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 14px; }
-        .keyword-highlight { background-color: #ffeb3b; padding: 1px 2px; border-radius: 2px; }
-        .input-container { display: flex; gap: 10px; }
-        #userInput { flex: 1; padding: 15px; font-size: 16px; height: 150px; resize: none; overflow-y: auto; font-family: Arial, sans-serif; }
-        button { padding: 15px 25px; cursor: pointer; font-size: 16px; }
-        .status { margin: 10px 0; padding: 5px; border-radius: 3px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        .info { background: #cce7ff; color: #004085; }
-        #timer { font-weight: bold; margin: 10px 0; color: #333; }
-        .transcription-container {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin: 10px 0;
-            min-height: 120px;
-            max-height: 250px;
-            overflow-y: auto;
-            background: #f8f9fa;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-        }
-        .interim { color: #666; font-style: italic; }
-        .final { color: #000; }
-        .mute-controls { margin: 5px 0; display: flex; align-items: center; gap: 10px; }
-        .mute-controls input[type="checkbox"] { cursor: pointer; }
-        .mute-controls label { cursor: pointer; user-select: none; }
-    </style>
+    <link rel="stylesheet" href="gemini-chat.css">
 </head>
 <body>
-    <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
-    <div id="knowledgeUpload" style="margin-bottom: 20px; padding: 10px; background: #f0f8ff; border: 1px solid #4CAF50; border-radius: 5px; display: flex; align-items: center; gap: 10px;">
+    <div class="header-container">
+        <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
+        <button class="theme-switcher" onclick="switchTheme()">Switch Theme</button>
+    </div>
+    <div class="main-container">
+        <div id="knowledgeUpload">
         <label for="fileInput" style="font-weight: bold; white-space: nowrap;">Upload Knowledge Base (Text File):</label>
         <input type="file" id="fileInput" accept=".txt">
         <div id="fileInfo" style="display: none; white-space: nowrap;">
             <strong>Loaded:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
         </div>
-    </div>
-    <div id="chatContainer" class="chat-container"></div>
-    <div id="timer"></div>
+        </div>
+        <div id="chatContainer" class="chat-container"></div>
+        <div id="timer"></div>
     <!-- Cache info commented out until cachedContentTokenCount is fixed
     <div id="cacheInfo" style="margin: 10px 0; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; display: none;">
         <strong>Cache Stats:</strong> <span id="cacheStats"></span>
     </div>
     -->
-    <div id="status" class="status" style="display: none;"></div>
-    <div class="mute-controls">
+        <div id="status" class="status" style="display: none;"></div>
+        <div class="mute-controls">
         <input type="checkbox" id="muteCheckbox" checked>
         <label for="muteCheckbox">Mute Transcription</label>
-    </div>
-    <div class="transcription-container">
+        </div>
+        <div class="transcription-container">
         <div id="liveTranscription">
             <span class="interim">Transcription will appear here when unmuted...</span>
         </div>
-    </div>
-    <div class="input-container">
+        </div>
+        <div class="input-container">
         <textarea id="userInput" placeholder="Type your message... (press Enter 3 times to send)" disabled></textarea>
         <button onclick="clearChat()">Clear Chat</button>
+        </div>
     </div>
     
     <script>
@@ -79,6 +51,34 @@
         let enterPressCount = 0;
         let isAudioPlaying = false;
         let currentAudioElement = null;
+        
+        // Theme management
+        const themes = ['default', 'dark', 'sunset', 'nature', 'minimal'];
+        let currentThemeIndex = 0;
+        
+        // Load saved theme or use default
+        const savedTheme = localStorage.getItem('chatTheme') || 'default';
+        currentThemeIndex = themes.indexOf(savedTheme);
+        if (currentThemeIndex === -1) currentThemeIndex = 0;
+        document.body.setAttribute('data-theme', themes[currentThemeIndex]);
+        
+        function switchTheme() {
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+            const newTheme = themes[currentThemeIndex];
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('chatTheme', newTheme);
+            
+            // Update theme button text
+            const themeButton = document.querySelector('.theme-switcher');
+            const themeNames = {
+                'default': 'Modern Blue',
+                'dark': 'Dark Mode',
+                'sunset': 'Sunset',
+                'nature': 'Nature',
+                'minimal': 'Minimal'
+            };
+            themeButton.textContent = `Theme: ${themeNames[newTheme]}`;
+        }
         
         // Transcription variables
         let ws = null;
@@ -99,6 +99,17 @@
             userInput.disabled = false;
             userInput.focus();
             setupFileUpload();
+            
+            // Initialize theme button text
+            const themeButton = document.querySelector('.theme-switcher');
+            const themeNames = {
+                'default': 'Modern Blue',
+                'dark': 'Dark Mode',
+                'sunset': 'Sunset',
+                'nature': 'Nature',
+                'minimal': 'Minimal'
+            };
+            themeButton.textContent = `Theme: ${themeNames[themes[currentThemeIndex]]}`;
             
             // Request microphone permissions on load
             try {
