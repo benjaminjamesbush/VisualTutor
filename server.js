@@ -221,6 +221,10 @@ app.post('/api/gemini', async (req, res) => {
       generationConfig.responseJsonSchema = {
         type: 'object',
         properties: {
+          outline: {
+            type: 'string',
+            description: 'Markdown-formatted outline with keywords/phrases only'
+          },
           sentences: {
             type: 'array',
             items: {
@@ -229,7 +233,7 @@ app.post('/api/gemini', async (req, res) => {
             description: 'List of sentences in the response'
           }
         },
-        required: ['sentences']
+        required: ['outline', 'sentences']
       };
     }
     
