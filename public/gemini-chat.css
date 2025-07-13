@@ -44,27 +44,27 @@
 
 /* Theme 2 - Dark Mode */
 body[data-theme="dark"] {
-    --bg-primary: #1a202c;
+    --bg-primary: #374151;
     --bg-secondary: #2d3748;
     --bg-chat: #2d3748;
-    --bg-user-message: #4299e1;
-    --bg-assistant-message: #374151;
-    --bg-input: #374151;
-    --bg-transcription: #374151;
+    --bg-user-message: #1a202c;
+    --bg-assistant-message: #1a202c;
+    --bg-input: #1a202c;
+    --bg-transcription: #1a202c;
     --bg-highlight: #f59e0b;
     --bg-success: #064e3b;
     --bg-error: #7f1d1d;
     --bg-info: #1e3a8a;
     --bg-header: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
     
-    --text-primary: #f7fafc;
+    --text-primary: #ffffff;
     --text-secondary: #e2e8f0;
     --text-user: #ffffff;
-    --text-assistant: #f7fafc;
+    --text-assistant: #ffffff;
     --text-success: #34d399;
     --text-error: #f87171;
     --text-info: #60a5fa;
-    --text-header: #f7fafc;
+    --text-header: #ffffff;
     
     --border-primary: #4a5568;
     --border-secondary: #718096;
