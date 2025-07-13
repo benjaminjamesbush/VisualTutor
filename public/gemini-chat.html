@@ -386,7 +386,60 @@
             contentDiv.className = 'message-content';
             
             if (role === 'user') {
-                contentDiv.textContent = content;
+                // Check if content has both typed and transcribed parts
+                const transcribedMatch = content.match(/^Transcribed: (.+)$/);
+                const typedMatch = content.match(/^Typed: (.+)$/);
+                const combinedMatch = content.match(/^Typed: (.+)\nTranscribed: (.+)$/);
+                
+                if (combinedMatch) {
+                    // Both typed and transcribed content
+                    const typedPart = combinedMatch[1];
+                    const transcribedPart = combinedMatch[2];
+                    
+                    // Create typed section
+                    const typedDiv = document.createElement('div');
+                    const typedLabel = document.createElement('strong');
+                    typedLabel.textContent = 'Typed';
+                    typedDiv.appendChild(typedLabel);
+                    typedDiv.appendChild(document.createElement('br'));
+                    typedDiv.appendChild(document.createTextNode(typedPart));
+                    contentDiv.appendChild(typedDiv);
+                    
+                    // Add horizontal line
+                    const hr = document.createElement('hr');
+                    hr.style.margin = '10px 0';
+                    hr.style.borderTop = '1px solid #ddd';
+                    contentDiv.appendChild(hr);
+                    
+                    // Create transcribed section
+                    const transcribedDiv = document.createElement('div');
+                    const transcribedLabel = document.createElement('strong');
+                    transcribedLabel.textContent = 'Transcribed';
+                    transcribedDiv.appendChild(transcribedLabel);
+                    transcribedDiv.appendChild(document.createElement('br'));
+                    transcribedDiv.appendChild(document.createTextNode(transcribedPart));
+                    contentDiv.appendChild(transcribedDiv);
+                } else if (transcribedMatch) {
+                    // Only transcribed content
+                    const transcribedPart = transcribedMatch[1];
+                    const transcribedLabel = document.createElement('strong');
+                    transcribedLabel.textContent = 'Transcribed';
+                    contentDiv.appendChild(transcribedLabel);
+                    contentDiv.appendChild(document.createElement('br'));
+                    contentDiv.appendChild(document.createTextNode(transcribedPart));
+                } else if (typedMatch) {
+                    // Only typed content  
+                    const typedPart = typedMatch[1];
+                    const typedLabel = document.createElement('strong');
+                    typedLabel.textContent = 'Typed';
+                    contentDiv.appendChild(typedLabel);
+                    contentDiv.appendChild(document.createElement('br'));
+                    contentDiv.appendChild(document.createTextNode(typedPart));
+                } else {
+                    // Plain content (backwards compatibility)
+                    contentDiv.textContent = content;
+                }
+                
                 bubbleDiv.appendChild(contentDiv);
                 messageDiv.appendChild(avatar);
                 messageDiv.appendChild(bubbleDiv);
@@ -594,12 +647,12 @@
             
             // Combine messages
             let message = '';
-            if (cleanTranscription && typedMessage) {
-                message = `Transcribed: ${cleanTranscription}\nTyped: ${typedMessage}`;
+            if (typedMessage && cleanTranscription) {
+                message = `Typed: ${typedMessage}\nTranscribed: ${cleanTranscription}`;
             } else if (cleanTranscription) {
                 message = `Transcribed: ${cleanTranscription}`;
             } else if (typedMessage) {
-                message = typedMessage;
+                message = `Typed: ${typedMessage}`;
             } else {
                 return; // Nothing to send
             }
