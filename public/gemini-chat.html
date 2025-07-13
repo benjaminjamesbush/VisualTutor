@@ -12,36 +12,37 @@
 <body>
     <div class="header-container">
         <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
-        <button class="theme-switcher" onclick="switchTheme()">Switch Theme</button>
-    </div>
-    <div class="main-container">
         <div id="knowledgeUpload">
-        <label for="fileInput" style="font-weight: bold; white-space: nowrap;">Upload Knowledge Base (Text File):</label>
-        <input type="file" id="fileInput" accept=".txt">
+        <input type="file" id="fileInput" accept=".txt" style="display: none;">
+        <button onclick="document.getElementById('fileInput').click()" class="upload-button">Upload Text File</button>
         <div id="fileInfo" style="display: none; white-space: nowrap;">
             <strong>Loaded:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
         </div>
         </div>
+        <button class="theme-switcher" onclick="switchTheme()">Switch Theme</button>
+    </div>
+    <div class="main-container">
         <div id="chatContainer" class="chat-container"></div>
-        <div id="timer"></div>
+        <!-- <div id="timer"></div> -->
     <!-- Cache info commented out until cachedContentTokenCount is fixed
     <div id="cacheInfo" style="margin: 10px 0; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; display: none;">
         <strong>Cache Stats:</strong> <span id="cacheStats"></span>
     </div>
     -->
-        <div id="status" class="status" style="display: none;"></div>
-        <div class="mute-controls">
-        <input type="checkbox" id="muteCheckbox" checked>
-        <label for="muteCheckbox">Mute Transcription</label>
-        </div>
-        <div class="transcription-container">
-        <div id="liveTranscription">
-            <span class="interim">Transcription will appear here when unmuted...</span>
-        </div>
-        </div>
         <div class="input-container">
         <textarea id="userInput" placeholder="Type your message... (press Enter 3 times to send)" disabled></textarea>
         <button onclick="clearChat()">Clear Chat</button>
+        </div>
+        <div class="transcription-wrapper">
+            <div class="transcription-container">
+                <div id="liveTranscription">
+                    <span class="interim">Transcription will appear here when unmuted...</span>
+                </div>
+            </div>
+            <div class="mute-controls">
+                <input type="checkbox" id="muteCheckbox" checked>
+                <label for="muteCheckbox">Mute</label>
+            </div>
         </div>
     </div>
     
@@ -61,7 +62,7 @@
         let currentThemeIndex = 0;
         
         // Load saved theme or use default
-        const savedTheme = localStorage.getItem('chatTheme') || 'default';
+        const savedTheme = localStorage.getItem('chatTheme') || 'dark';
         currentThemeIndex = themes.indexOf(savedTheme);
         if (currentThemeIndex === -1) currentThemeIndex = 0;
         document.body.setAttribute('data-theme', themes[currentThemeIndex]);
@@ -103,6 +104,20 @@
             userInput.disabled = false;
             userInput.focus();
             setupFileUpload();
+            
+            // Match mute controls width to button width
+            const matchMuteControlsWidth = () => {
+                const clearButton = document.querySelector('button[onclick="clearChat()"]');
+                const muteControls = document.querySelector('.mute-controls');
+                if (clearButton && muteControls) {
+                    const buttonWidth = clearButton.offsetWidth;
+                    muteControls.style.width = buttonWidth + 'px';
+                }
+            };
+            
+            // Run initially and on resize
+            matchMuteControlsWidth();
+            window.addEventListener('resize', matchMuteControlsWidth);
             
             // Initialize theme button text
             const themeButton = document.querySelector('.theme-switcher');
@@ -329,11 +344,45 @@
             }
         });
         
+        // Track active notifications for positioning
+        let activeNotifications = [];
+        
         function showStatus(message, type = 'info') {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.className = `status ${type}`;
-            statusDiv.style.display = 'block';
+            // Create a new notification element
+            const notification = document.createElement('div');
+            notification.className = `status-notification ${type}`;
+            notification.textContent = message;
+            
+            // Add to body
+            document.body.appendChild(notification);
+            
+            // Calculate position based on existing notifications
+            const topOffset = 20 + (activeNotifications.length * 70); // 70px spacing between notifications
+            notification.style.top = `${topOffset}px`;
+            
+            // Add to active notifications
+            activeNotifications.push(notification);
+            
+            // Trigger animation
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+            
+            // Auto-remove after 1.5 seconds
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                
+                // Remove from DOM after fade animation
+                setTimeout(() => {
+                    notification.remove();
+                    // Remove from active notifications array
+                    activeNotifications = activeNotifications.filter(n => n !== notification);
+                    // Reposition remaining notifications
+                    activeNotifications.forEach((n, index) => {
+                        n.style.top = `${20 + (index * 70)}px`;
+                    });
+                }, 500); // Match CSS transition duration
+            }, 1500);
         }
         
         function addMessage(role, content) {

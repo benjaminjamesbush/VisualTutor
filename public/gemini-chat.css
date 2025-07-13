@@ -12,6 +12,7 @@
     --bg-success: #d4edda;
     --bg-error: #f8d7da;
     --bg-info: #cce5ff;
+    --bg-warning: #fff3cd;
     --bg-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     
     --text-primary: #2d3748;
@@ -21,6 +22,7 @@
     --text-success: #155724;
     --text-error: #721c24;
     --text-info: #004085;
+    --text-warning: #856404;
     --text-header: #ffffff;
     
     --border-primary: #e2e8f0;
@@ -68,6 +70,9 @@ body[data-theme="dark"] {
     --border-secondary: #718096;
     --border-chat: #4a5568;
     --border-focus: #4299e1;
+    
+    --bg-warning: #92400e;
+    --text-warning: #fbbf24;
 }
 
 /* Theme 3 - Sunset Gradient */
@@ -185,6 +190,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
 }
 
 h3 {
@@ -216,33 +223,40 @@ h3 {
 
 /* Knowledge Upload */
 #knowledgeUpload {
-    margin: 20px;
-    padding: 16px;
-    background: var(--bg-secondary);
-    border: 2px dashed var(--border-secondary);
-    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+    justify-content: center;
+}
+
+#fileInfo {
+    color: var(--text-header);
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    backdrop-filter: blur(10px);
+}
+
+/* Upload Button */
+.upload-button {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: var(--text-header);
+    padding: 8px 16px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
     transition: all 0.3s ease;
 }
 
-#knowledgeUpload:hover {
-    border-color: var(--border-focus);
-    box-shadow: var(--shadow-sm);
-}
-
-#knowledgeUpload label {
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-#fileInput {
-    padding: 8px;
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    background: var(--bg-input);
-    color: var(--text-primary);
+.upload-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
 }
 
 /* Main Container */
@@ -316,6 +330,11 @@ h3 {
     padding-left: 24px;
 }
 
+.assistant-message ul li, .assistant-message ol li {
+    line-height: 1.2;
+    margin: 0;
+}
+
 .assistant-message hr {
     border: none;
     border-top: 1px solid var(--border-primary);
@@ -336,28 +355,56 @@ h3 {
     border-radius: var(--radius-md);
 }
 
-/* Status Messages */
-.status {
-    margin: 0 20px;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
+/* Status Notifications */
+.status-notification {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    padding: 12px 24px;
+    border-radius: var(--radius-full);
     font-weight: 500;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1000;
+    max-width: 80%;
+    text-align: center;
+    pointer-events: all;
 }
 
-.success {
+.status-notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.status-notification.fade-out {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+    pointer-events: none;
+}
+
+.status-notification.success {
     background: var(--bg-success);
     color: var(--text-success);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.error {
+.status-notification.error {
     background: var(--bg-error);
     color: var(--text-error);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.info {
+.status-notification.info {
     background: var(--bg-info);
     color: var(--text-info);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.status-notification.warning {
+    background: var(--bg-warning, #fff3cd);
+    color: var(--text-warning, #856404);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Timer */
@@ -369,17 +416,24 @@ h3 {
 }
 
 /* Transcription Container */
-.transcription-container {
+.transcription-wrapper {
     margin: 0 20px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.transcription-container {
+    flex: 1;
     border: 1px solid var(--border-primary);
     padding: 16px;
-    min-height: 100px;
-    max-height: 200px;
+    height: 240px;
     overflow-y: auto;
     background: var(--bg-transcription);
     border-radius: var(--radius-md);
-    font-size: 16px;
+    font-size: 32px;
     box-shadow: var(--shadow-sm);
+    resize: none;
 }
 
 .interim {
@@ -393,10 +447,11 @@ h3 {
 
 /* Mute Controls */
 .mute-controls {
-    margin: 0 20px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    white-space: nowrap;
+    justify-content: center;
 }
 
 .mute-controls input[type="checkbox"] {
@@ -422,8 +477,8 @@ h3 {
 #userInput {
     flex: 1;
     padding: 16px;
-    font-size: 16px;
-    height: 120px;
+    font-size: 32px;
+    height: 240px;
     resize: none;
     overflow-y: auto;
     font-family: inherit;
@@ -493,10 +548,23 @@ button:active {
 @media (max-width: 768px) {
     .header-container {
         padding: 16px;
+        flex-direction: column;
+        gap: 12px;
     }
     
     h3 {
         font-size: 20px;
+    }
+    
+    #knowledgeUpload {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .upload-button,
+    .theme-switcher {
+        font-size: 12px;
+        padding: 6px 12px;
     }
     
     .main-container {
@@ -517,8 +585,8 @@ button:active {
     }
     
     #userInput {
-        height: 100px;
-        font-size: 14px;
+        height: 200px;
+        font-size: 28px;
     }
     
     button {
