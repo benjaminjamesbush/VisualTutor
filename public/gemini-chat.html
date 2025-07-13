@@ -12,6 +12,7 @@
 <body>
     <div class="header-container">
         <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
+        <button onclick="clearChat()" class="clear-button">Clear Chat</button>
         <div id="knowledgeUpload">
         <input type="file" id="fileInput" accept=".txt" style="display: none;">
         <button onclick="document.getElementById('fileInput').click()" class="upload-button">Upload Text File</button>
@@ -31,7 +32,11 @@
     -->
         <div class="input-container">
         <textarea id="userInput" placeholder="Type your message... (press Enter 3 times to send)" disabled></textarea>
-        <button onclick="clearChat()">Clear Chat</button>
+        <div class="send-controls">
+            <div style="font-size: 80px; margin-bottom: 4px; line-height: 1;">⌨️</div>
+            <button onclick="sendMessage()" class="send-button">Send</button>
+            <label class="send-label">(Enter 3x)</label>
+        </div>
         </div>
         <div class="transcription-wrapper">
             <div class="mute-controls">
@@ -106,19 +111,24 @@
             userInput.focus();
             setupFileUpload();
             
-            // Match mute controls width to button width
-            const matchMuteControlsWidth = () => {
-                const clearButton = document.querySelector('button[onclick="clearChat()"]');
+            // Match controls width to make emojis same size
+            const matchControlsWidth = () => {
+                const sendButton = document.querySelector('.send-button');
                 const muteControls = document.querySelector('.mute-controls');
-                if (clearButton && muteControls) {
-                    const buttonWidth = clearButton.offsetWidth;
+                const sendControls = document.querySelector('.send-controls');
+                
+                if (sendButton && muteControls && sendControls) {
+                    // Get the computed width of the send button
+                    const buttonWidth = sendButton.offsetWidth;
+                    // Set both controls to match
                     muteControls.style.width = buttonWidth + 'px';
+                    sendControls.style.width = buttonWidth + 'px';
                 }
             };
             
             // Run initially and on resize
-            matchMuteControlsWidth();
-            window.addEventListener('resize', matchMuteControlsWidth);
+            setTimeout(matchControlsWidth, 100); // Small delay to ensure rendering
+            window.addEventListener('resize', matchControlsWidth);
             
             // Initialize theme button text
             const themeButton = document.querySelector('.theme-switcher');
@@ -600,7 +610,7 @@
             
             // Start timer
             requestStartTime = performance.now();
-            timerElement.textContent = 'Timer: Sending request to Gemini...';
+            if (timerElement) timerElement.textContent = 'Timer: Sending request to Gemini...';
             showStatus('Processing with streaming JSON output...', 'info');
             
             // Create placeholder for assistant response
@@ -698,7 +708,7 @@
                             const data = line.slice(6);
                             if (data === '[DONE]') {
                                 const totalTime = Math.round(performance.now() - requestStartTime);
-                                timerElement.textContent = `Timer: ${totalTime}ms total (first chunk: ${firstChunkTime}ms)`;
+                                if (timerElement) timerElement.textContent = `Timer: ${totalTime}ms total (first chunk: ${firstChunkTime}ms)`;
                                 showStatus('Streaming complete!', 'success');
                                 
                                 // Add complete response to conversation history
@@ -774,7 +784,7 @@
                                     if (parsed.text) {
                                         if (!firstChunkTime) {
                                             firstChunkTime = Math.round(performance.now() - requestStartTime);
-                                            timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
+                                            if (timerElement) timerElement.textContent = `Timer: ${firstChunkTime}ms to first chunk (streaming...)`;
                                         }
                                         fullResponse += parsed.text;
                                         // Try to parse and render the response
@@ -843,7 +853,7 @@
                     // Handle user interruption
                     showStatus('Response interrupted', 'info');
                     const totalTime = Math.round(performance.now() - requestStartTime);
-                    timerElement.textContent = `Timer: ${totalTime}ms (interrupted)`;
+                    if (timerElement) timerElement.textContent = `Timer: ${totalTime}ms (interrupted)`;
                     
                     // Fix incomplete JSON and add to conversation history
                     if (fullResponse) {
@@ -939,7 +949,7 @@
                     // Handle other errors
                     console.error('Error:', error);
                     showStatus(`Error: ${error.message}`, 'error');
-                    timerElement.textContent = 'Timer: Request failed';
+                    if (timerElement) timerElement.textContent = 'Timer: Request failed';
                     
                     assistantDiv.innerHTML = ''; // Clear previous content
                     const errorDiv = document.createElement('div');
@@ -964,8 +974,7 @@
         function clearChat() {
             conversationHistory = [];
             chatContainer.innerHTML = '';
-            timerElement.textContent = '';
-            document.getElementById('status').style.display = 'none';
+            if (timerElement) timerElement.textContent = '';
             userInput.focus();
         }
         
