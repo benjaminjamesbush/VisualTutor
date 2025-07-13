@@ -499,6 +499,11 @@
             });
         }
         
+        // Scroll chat container to bottom
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
         // Update emoji heights based on smallest message box
         function updateEmojiHeights() {
             const messageBubbles = document.querySelectorAll('.message-bubble');
@@ -719,6 +724,8 @@
                 currentAudioElement = audioElement;
                 // Disable user input while audio is playing
                 disableUserInput();
+                // Scroll to bottom when audio starts playing
+                scrollToBottom();
             });
             
             audioElement.addEventListener('pause', () => {
@@ -742,6 +749,19 @@
             });
             
             assistantContentDiv.appendChild(audioElement);
+            
+            // Add observer to watch for when audio element becomes visible
+            const audioObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        if (audioElement.style.display === 'block') {
+                            // Audio element just became visible, scroll to bottom
+                            setTimeout(() => scrollToBottom(), 100);
+                        }
+                    }
+                });
+            });
+            audioObserver.observe(audioElement, { attributes: true, attributeFilter: ['style'] });
             
             assistantBubbleDiv.appendChild(assistantContentDiv);
             assistantDiv.appendChild(assistantAvatar);
