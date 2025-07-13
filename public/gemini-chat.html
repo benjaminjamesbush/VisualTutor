@@ -1318,7 +1318,7 @@
         
         // Update transcription display
         function updateTranscription(data) {
-            if (data.type === 'SpeechStarted' || data.type === 'UtteranceEnd') {
+            if (data.type === 'SpeechStarted' || data.type === 'UtteranceEnd' || data.type === 'Metadata') {
                 return;
             }
             
