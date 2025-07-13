@@ -1,49 +1,5 @@
-/* CSS Variables for Theming */
+/* CSS Variables for Dark Theme */
 :root {
-    /* Default Theme - Modern Blue */
-    --bg-primary: #f0f4f8;
-    --bg-secondary: #ffffff;
-    --bg-chat: #ffffff;
-    --bg-user-message: #007bff;
-    --bg-assistant-message: #f8f9fa;
-    --bg-input: #ffffff;
-    --bg-transcription: #f8f9fa;
-    --bg-highlight: #ffd93d;
-    --bg-success: #d4edda;
-    --bg-error: #f8d7da;
-    --bg-info: #cce5ff;
-    --bg-warning: #fff3cd;
-    --bg-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    
-    --text-primary: #2d3748;
-    --text-secondary: #4a5568;
-    --text-user: #ffffff;
-    --text-assistant: #2d3748;
-    --text-success: #155724;
-    --text-error: #721c24;
-    --text-info: #004085;
-    --text-warning: #856404;
-    --text-header: #ffffff;
-    
-    --border-primary: #e2e8f0;
-    --border-secondary: #cbd5e0;
-    --border-chat: #e2e8f0;
-    --border-focus: #007bff;
-    
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-    
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 16px;
-    --radius-full: 50px;
-    
-    --transition: all 0.3s ease;
-}
-
-/* Theme 2 - Dark Mode */
-body[data-theme="dark"] {
     --bg-primary: #374151;
     --bg-secondary: #2d3748;
     --bg-chat: #2d3748;
@@ -73,97 +29,17 @@ body[data-theme="dark"] {
     
     --bg-warning: #92400e;
     --text-warning: #fbbf24;
-}
-
-/* Theme 3 - Sunset Gradient */
-body[data-theme="sunset"] {
-    --bg-primary: #fef3c7;
-    --bg-secondary: #ffffff;
-    --bg-chat: #ffffff;
-    --bg-user-message: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-    --bg-assistant-message: #fff7ed;
-    --bg-input: #ffffff;
-    --bg-transcription: #fff7ed;
-    --bg-highlight: #fbbf24;
-    --bg-success: #ecfdf5;
-    --bg-error: #fef2f2;
-    --bg-info: #eff6ff;
-    --bg-header: linear-gradient(135deg, #f97316 0%, #ec4899 100%);
     
-    --text-primary: #78350f;
-    --text-secondary: #92400e;
-    --text-user: #ffffff;
-    --text-assistant: #78350f;
-    --text-success: #064e3b;
-    --text-error: #7f1d1d;
-    --text-info: #1e3a8a;
-    --text-header: #ffffff;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
     
-    --border-primary: #fcd34d;
-    --border-secondary: #f59e0b;
-    --border-chat: #fcd34d;
-    --border-focus: #f59e0b;
-}
-
-/* Theme 4 - Nature Green */
-body[data-theme="nature"] {
-    --bg-primary: #ecfdf5;
-    --bg-secondary: #ffffff;
-    --bg-chat: #ffffff;
-    --bg-user-message: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    --bg-assistant-message: #f0fdf4;
-    --bg-input: #ffffff;
-    --bg-transcription: #f0fdf4;
-    --bg-highlight: #84cc16;
-    --bg-success: #d1fae5;
-    --bg-error: #fee2e2;
-    --bg-info: #dbeafe;
-    --bg-header: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 16px;
+    --radius-full: 50px;
     
-    --text-primary: #064e3b;
-    --text-secondary: #065f46;
-    --text-user: #ffffff;
-    --text-assistant: #064e3b;
-    --text-success: #065f46;
-    --text-error: #991b1b;
-    --text-info: #1e40af;
-    --text-header: #ffffff;
-    
-    --border-primary: #86efac;
-    --border-secondary: #34d399;
-    --border-chat: #86efac;
-    --border-focus: #10b981;
-}
-
-/* Theme 5 - Minimal Monochrome */
-body[data-theme="minimal"] {
-    --bg-primary: #ffffff;
-    --bg-secondary: #fafafa;
-    --bg-chat: #fafafa;
-    --bg-user-message: #000000;
-    --bg-assistant-message: #f5f5f5;
-    --bg-input: #ffffff;
-    --bg-transcription: #f5f5f5;
-    --bg-highlight: #e5e5e5;
-    --bg-success: #f0f0f0;
-    --bg-error: #f0f0f0;
-    --bg-info: #f0f0f0;
-    --bg-header: #000000;
-    
-    --text-primary: #000000;
-    --text-secondary: #525252;
-    --text-user: #ffffff;
-    --text-assistant: #000000;
-    --text-success: #000000;
-    --text-error: #000000;
-    --text-info: #000000;
-    --text-header: #ffffff;
-    
-    --border-primary: #e5e5e5;
-    --border-secondary: #d4d4d4;
-    --border-chat: #e5e5e5;
-    --border-focus: #000000;
-}
+    --transition: all 0.3s ease;
 
 /* Base Styles */
 * {
@@ -199,26 +75,6 @@ h3 {
     color: var(--text-header);
     font-size: 24px;
     font-weight: 600;
-}
-
-/* Theme Switcher */
-.theme-switcher {
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    color: var(--text-header);
-    padding: 8px 16px;
-    border-radius: var(--radius-full);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
-}
-
-.theme-switcher:hover {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
 }
 
 /* Knowledge Upload */
@@ -651,8 +507,7 @@ button:active {
         justify-content: space-between;
     }
     
-    .upload-button,
-    .theme-switcher {
+    .upload-button {
         font-size: 12px;
         padding: 6px 12px;
     }

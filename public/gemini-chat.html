@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Gemini 2.5 Flash - Chatbot Interface</title>
+    <title>Chiron - Medical Tutor</title>
     <link rel="stylesheet" href="gemini-chat.css">
     <script type="module">
         import { buildSystemInstruction } from './system-message.js';
@@ -11,7 +11,7 @@
 </head>
 <body>
     <div class="header-container">
-        <h3>Gemini 2.5 Flash - Chatbot Interface</h3>
+        <h3>Chiron - Medical Tutor</h3>
         <button onclick="clearChat()" class="clear-button">Clear Chat</button>
         <div id="knowledgeUpload">
         <input type="file" id="fileInput" accept=".txt" style="display: none;">
@@ -20,7 +20,6 @@
             <strong>Loaded:</strong> <span id="fileName"></span> (<span id="fileSize"></span>)
         </div>
         </div>
-        <button class="theme-switcher" onclick="switchTheme()">Switch Theme</button>
     </div>
     <div class="main-container">
         <div id="chatContainer" class="chat-container"></div>
@@ -63,33 +62,8 @@
         let isAudioPlaying = false;
         let currentAudioElement = null;
         
-        // Theme management
-        const themes = ['default', 'dark', 'sunset', 'nature', 'minimal'];
-        let currentThemeIndex = 0;
-        
-        // Load saved theme or use default
-        const savedTheme = localStorage.getItem('chatTheme') || 'dark';
-        currentThemeIndex = themes.indexOf(savedTheme);
-        if (currentThemeIndex === -1) currentThemeIndex = 0;
-        document.body.setAttribute('data-theme', themes[currentThemeIndex]);
-        
-        function switchTheme() {
-            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
-            const newTheme = themes[currentThemeIndex];
-            document.body.setAttribute('data-theme', newTheme);
-            localStorage.setItem('chatTheme', newTheme);
-            
-            // Update theme button text
-            const themeButton = document.querySelector('.theme-switcher');
-            const themeNames = {
-                'default': 'Modern Blue',
-                'dark': 'Dark Mode',
-                'sunset': 'Sunset',
-                'nature': 'Nature',
-                'minimal': 'Minimal'
-            };
-            themeButton.textContent = `Theme: ${themeNames[newTheme]}`;
-        }
+        // Set dark theme as default
+        document.body.setAttribute('data-theme', 'dark');
         
         // Transcription variables
         let ws = null;
@@ -137,16 +111,6 @@
                 });
             });
             
-            // Initialize theme button text
-            const themeButton = document.querySelector('.theme-switcher');
-            const themeNames = {
-                'default': 'Modern Blue',
-                'dark': 'Dark Mode',
-                'sunset': 'Sunset',
-                'nature': 'Nature',
-                'minimal': 'Minimal'
-            };
-            themeButton.textContent = `Theme: ${themeNames[themes[currentThemeIndex]]}`;
             
             // Request microphone permissions on load
             try {
