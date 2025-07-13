@@ -96,7 +96,7 @@ h3 {
 }
 
 /* Upload Button */
-.upload-button {
+.upload-button, .manage-files-button {
     background: rgba(255, 255, 255, 0.2);
     border: 2px solid rgba(255, 255, 255, 0.3);
     color: var(--text-header);
@@ -109,7 +109,7 @@ h3 {
     transition: all 0.3s ease;
 }
 
-.upload-button:hover {
+.upload-button:hover, .manage-files-button:hover {
     background: rgba(255, 255, 255, 0.3);
     border-color: rgba(255, 255, 255, 0.5);
     transform: translateY(-2px);
@@ -542,5 +542,218 @@ button:active {
     button {
         padding: 12px 20px;
         font-size: 14px;
+    }
+}
+
+/* File Manager Dialog */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    backdrop-filter: blur(5px);
+}
+
+.dialog-content {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    animation: dialogSlideIn 0.3s ease;
+}
+
+@keyframes dialogSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.dialog-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-header);
+}
+
+.dialog-header h3 {
+    margin: 0;
+    color: var(--text-header);
+    font-size: 18px;
+}
+
+.dialog-close {
+    background: none;
+    border: none;
+    color: var(--text-header);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.dialog-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: none;
+    box-shadow: none;
+}
+
+.dialog-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.file-list {
+    margin-bottom: 20px;
+    min-height: 120px;
+}
+
+.no-files {
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+}
+
+.file-item:hover {
+    background: var(--bg-chat);
+    border-color: var(--border-primary);
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.file-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.file-remove {
+    background: var(--bg-error);
+    border: none;
+    color: var(--text-error);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    margin-left: 12px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.file-remove:hover {
+    background: #991b1b;
+    transform: scale(1.1);
+    box-shadow: none;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-secondary);
+}
+
+.add-files-button {
+    background: var(--bg-info);
+    color: var(--text-info);
+    border: 1px solid var(--border-primary);
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.add-files-button:hover {
+    background: #1e40af;
+    transform: translateY(-1px);
+}
+
+.clear-all-button {
+    background: var(--bg-error);
+    color: var(--text-error);
+    border: 1px solid var(--border-primary);
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.clear-all-button:hover {
+    background: #991b1b;
+    transform: translateY(-1px);
+}
+
+/* Responsive dialog */
+@media (max-width: 768px) {
+    .dialog-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .dialog-header, .dialog-body {
+        padding: 16px;
+    }
+    
+    .dialog-actions {
+        flex-direction: column;
+    }
+    
+    .add-files-button, .clear-all-button {
+        width: 100%;
     }
 }

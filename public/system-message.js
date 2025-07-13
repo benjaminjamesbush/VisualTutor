@@ -1,8 +1,23 @@
 // System message construction for Gemini chatbot
-export function buildSystemInstruction(knowledgeBaseFileName, knowledgeBaseContent) {
-    // Set defaults for missing knowledge base
-    const knowledgeFileName = knowledgeBaseFileName || '(none loaded)';
-    const knowledgeContent = knowledgeBaseContent || '[No content - no knowledge base file has been uploaded]';
+export function buildSystemInstruction(uploadedFiles) {
+    // Handle multiple files or fallback to old single file format
+    let knowledgeFileName, knowledgeContent;
+    
+    if (Array.isArray(uploadedFiles) && uploadedFiles.length > 0) {
+        // Multiple files format
+        knowledgeFileName = uploadedFiles.map(f => f.name).join(', ');
+        knowledgeContent = uploadedFiles.map(file => 
+            `=== FILE: ${file.name} ===\n${file.content}\n\n`
+        ).join('');
+    } else if (typeof uploadedFiles === 'string') {
+        // Legacy single file format (backwards compatibility)
+        knowledgeFileName = arguments[0] || '(none loaded)';
+        knowledgeContent = arguments[1] || '[No content - no knowledge base file has been uploaded]';
+    } else {
+        // No files
+        knowledgeFileName = '(none loaded)';
+        knowledgeContent = '[No content - no knowledge base files have been uploaded]';
+    }
     
     // Build and return the system instruction
     return `# Personality
