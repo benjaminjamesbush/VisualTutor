@@ -130,6 +130,13 @@
             setTimeout(matchControlsWidth, 100); // Small delay to ensure rendering
             window.addEventListener('resize', matchControlsWidth);
             
+            // Update emoji heights on resize
+            window.addEventListener('resize', () => {
+                requestAnimationFrame(() => {
+                    updateEmojiHeights();
+                });
+            });
+            
             // Initialize theme button text
             const themeButton = document.querySelector('.theme-switcher');
             const themeNames = {
@@ -400,8 +407,25 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
             
+            // Create avatar
+            const avatar = document.createElement('img');
+            avatar.className = 'message-avatar';
+            avatar.src = role === 'user' ? 'student-emoji-transparent.png' : 'chiron-emoji-transparent.png';
+            avatar.alt = role === 'user' ? 'Student' : 'Chiron';
+            
+            // Create bubble container
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
+            
+            // Create content container
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
             if (role === 'user') {
-                messageDiv.textContent = content;
+                contentDiv.textContent = content;
+                bubbleDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(bubbleDiv);
             } else {
                 // Parse JSON and render formatted content
                 try {
@@ -413,14 +437,14 @@
                         outlineDiv.style.marginBottom = '10px';
                         // Convert markdown to HTML
                         outlineDiv.innerHTML = convertMarkdownToHTML(response.outline);
-                        messageDiv.appendChild(outlineDiv);
+                        contentDiv.appendChild(outlineDiv);
                     }
                     
                     // Add horizontal line
                     const hr = document.createElement('hr');
                     hr.style.margin = '10px 0';
                     hr.style.borderTop = '1px solid #ddd';
-                    messageDiv.appendChild(hr);
+                    contentDiv.appendChild(hr);
                     
                     // Add concatenated sentences with keyword highlighting
                     if (response.sentences && Array.isArray(response.sentences)) {
@@ -435,18 +459,48 @@
                             sentencesDiv.textContent = sentencesText;
                         }
                         
-                        messageDiv.appendChild(sentencesDiv);
+                        contentDiv.appendChild(sentencesDiv);
                     }
                 } catch (e) {
                     // Fallback to showing raw content if not valid JSON
                     const pre = document.createElement('pre');
                     pre.textContent = content;
-                    messageDiv.appendChild(pre);
+                    contentDiv.appendChild(pre);
                 }
+                
+                bubbleDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(bubbleDiv);
             }
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // Update emoji heights after adding message
+            requestAnimationFrame(() => {
+                updateEmojiHeights();
+            });
+        }
+        
+        // Update emoji heights based on smallest message box
+        function updateEmojiHeights() {
+            const messageBubbles = document.querySelectorAll('.message-bubble');
+            if (messageBubbles.length === 0) return;
+            
+            // Find the smallest message bubble height
+            let minHeight = Infinity;
+            messageBubbles.forEach(bubble => {
+                const height = bubble.offsetHeight;
+                if (height > 0 && height < minHeight) {
+                    minHeight = height;
+                }
+            });
+            
+            // Set the CSS variable to 3x the smallest height
+            if (minHeight !== Infinity) {
+                const maxEmojiHeight = minHeight * 3;
+                document.documentElement.style.setProperty('--max-emoji-height', `${maxEmojiHeight}px`);
+            }
         }
         
         // Extract keywords from markdown outline
@@ -616,8 +670,23 @@
             // Create placeholder for assistant response
             const assistantDiv = document.createElement('div');
             assistantDiv.className = 'message assistant-message';
+            
+            // Create avatar for assistant
+            const assistantAvatar = document.createElement('img');
+            assistantAvatar.className = 'message-avatar';
+            assistantAvatar.src = 'chiron-emoji-transparent.png';
+            assistantAvatar.alt = 'Chiron';
+            
+            // Create bubble container
+            const assistantBubbleDiv = document.createElement('div');
+            assistantBubbleDiv.className = 'message-bubble';
+            
+            // Create content container
+            const assistantContentDiv = document.createElement('div');
+            assistantContentDiv.className = 'message-content';
+            
             const pre = document.createElement('pre');
-            assistantDiv.appendChild(pre);
+            assistantContentDiv.appendChild(pre);
             
             // Create audio element for TTS
             const audioElement = document.createElement('audio');
@@ -655,7 +724,11 @@
                 enableUserInput();
             });
             
-            assistantDiv.appendChild(audioElement);
+            assistantContentDiv.appendChild(audioElement);
+            
+            assistantBubbleDiv.appendChild(assistantContentDiv);
+            assistantDiv.appendChild(assistantAvatar);
+            assistantDiv.appendChild(assistantBubbleDiv);
             
             chatContainer.appendChild(assistantDiv);
             
@@ -790,21 +863,21 @@
                                         // Try to parse and render the response
                                         try {
                                             const responseObj = JSON.parse(fullResponse);
-                                            assistantDiv.innerHTML = ''; // Clear previous content
+                                            assistantContentDiv.innerHTML = ''; // Clear previous content
                                             
                                             // Create outline container
                                             if (responseObj.outline) {
                                                 const outlineDiv = document.createElement('div');
                                                 outlineDiv.style.marginBottom = '10px';
                                                 outlineDiv.innerHTML = convertMarkdownToHTML(responseObj.outline);
-                                                assistantDiv.appendChild(outlineDiv);
+                                                assistantContentDiv.appendChild(outlineDiv);
                                             }
                                             
                                             // Add horizontal line
                                             const hr = document.createElement('hr');
                                             hr.style.margin = '10px 0';
                                             hr.style.borderTop = '1px solid #ddd';
-                                            assistantDiv.appendChild(hr);
+                                            assistantContentDiv.appendChild(hr);
                                             
                                             // Add concatenated sentences with keyword highlighting
                                             if (responseObj.sentences && Array.isArray(responseObj.sentences)) {
@@ -819,19 +892,24 @@
                                                     sentencesDiv.textContent = sentencesText;
                                                 }
                                                 
-                                                assistantDiv.appendChild(sentencesDiv);
+                                                assistantContentDiv.appendChild(sentencesDiv);
                                             }
                                             
                                             // Re-append audio element
-                                            assistantDiv.appendChild(audioElement);
+                                            assistantContentDiv.appendChild(audioElement);
                                         } catch (e) {
                                             // If JSON is incomplete, show raw response
                                             pre.textContent = fullResponse;
-                                            if (!assistantDiv.contains(pre)) {
-                                                assistantDiv.insertBefore(pre, audioElement);
+                                            if (!assistantContentDiv.contains(pre)) {
+                                                assistantContentDiv.insertBefore(pre, audioElement);
                                             }
                                         }
                                         chatContainer.scrollTop = chatContainer.scrollHeight;
+                                        
+                                        // Update emoji heights during streaming
+                                        requestAnimationFrame(() => {
+                                            updateEmojiHeights();
+                                        });
                                     } else if (parsed.cacheInfo) {
                                         // Cache info commented out until cachedContentTokenCount is fixed
                                         // const cacheDiv = document.getElementById('cacheInfo');
@@ -863,21 +941,21 @@
                         console.log('TTS: Fixed response structure:', fixedResponse);
                         
                         // Update the display with formatted content
-                        assistantDiv.innerHTML = ''; // Clear previous content
+                        assistantContentDiv.innerHTML = ''; // Clear previous content
                         
                         // Create outline container
                         if (fixedResponse.outline) {
                             const outlineDiv = document.createElement('div');
                             outlineDiv.style.marginBottom = '10px';
                             outlineDiv.innerHTML = convertMarkdownToHTML(fixedResponse.outline);
-                            assistantDiv.appendChild(outlineDiv);
+                            assistantContentDiv.appendChild(outlineDiv);
                         }
                         
                         // Add horizontal line
                         const hr = document.createElement('hr');
                         hr.style.margin = '10px 0';
                         hr.style.borderTop = '1px solid #ddd';
-                        assistantDiv.appendChild(hr);
+                        assistantContentDiv.appendChild(hr);
                         
                         // Add concatenated sentences with keyword highlighting
                         if (fixedResponse.sentences && Array.isArray(fixedResponse.sentences)) {
@@ -892,11 +970,11 @@
                                 sentencesDiv.textContent = sentencesText;
                             }
                             
-                            assistantDiv.appendChild(sentencesDiv);
+                            assistantContentDiv.appendChild(sentencesDiv);
                         }
                         
                         // Re-append audio element
-                        assistantDiv.appendChild(audioElement);
+                        assistantContentDiv.appendChild(audioElement);
                         
                         // Add the interrupted response to conversation history
                         conversationHistory.push({
@@ -924,21 +1002,21 @@
                         // No response received before interruption
                         const emptyResponse = { sentences: ['(Response interrupted before any content was received)'] };
                         
-                        assistantDiv.innerHTML = ''; // Clear previous content
+                        assistantContentDiv.innerHTML = ''; // Clear previous content
                         
                         // Add horizontal line
                         const hr = document.createElement('hr');
                         hr.style.margin = '10px 0';
                         hr.style.borderTop = '1px solid #ddd';
-                        assistantDiv.appendChild(hr);
+                        assistantContentDiv.appendChild(hr);
                         
                         // Add message
                         const sentencesDiv = document.createElement('div');
                         sentencesDiv.textContent = emptyResponse.sentences.join(' ');
-                        assistantDiv.appendChild(sentencesDiv);
+                        assistantContentDiv.appendChild(sentencesDiv);
                         
                         // Re-append audio element
-                        assistantDiv.appendChild(audioElement);
+                        assistantContentDiv.appendChild(audioElement);
                         
                         conversationHistory.push({
                             role: 'model',
@@ -951,12 +1029,12 @@
                     showStatus(`Error: ${error.message}`, 'error');
                     if (timerElement) timerElement.textContent = 'Timer: Request failed';
                     
-                    assistantDiv.innerHTML = ''; // Clear previous content
+                    assistantContentDiv.innerHTML = ''; // Clear previous content
                     const errorDiv = document.createElement('div');
                     errorDiv.style.color = '#721c24';
                     errorDiv.textContent = `Error: ${error.message}`;
-                    assistantDiv.appendChild(errorDiv);
-                    assistantDiv.appendChild(audioElement);
+                    assistantContentDiv.appendChild(errorDiv);
+                    assistantContentDiv.appendChild(audioElement);
                 }
             } finally {
                 // Re-enable input and clear abort controller

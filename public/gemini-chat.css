@@ -303,11 +303,18 @@ h3 {
 /* Messages */
 .message {
     margin: 12px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: fadeIn 0.3s ease;
+}
+
+.message-bubble {
     padding: 16px 20px;
     border-radius: var(--radius-lg);
     font-size: 16px;
     line-height: 1.6;
-    animation: fadeIn 0.3s ease;
+    box-shadow: var(--shadow-sm);
 }
 
 @keyframes fadeIn {
@@ -322,19 +329,25 @@ h3 {
 }
 
 .user-message {
+    justify-content: flex-end;
+}
+
+.user-message .message-bubble {
     background: var(--bg-user-message);
     color: var(--text-user);
-    margin-left: 20%;
+    max-width: 80%;
     text-align: right;
-    box-shadow: var(--shadow-sm);
 }
 
 .assistant-message {
+    justify-content: flex-start;
+}
+
+.assistant-message .message-bubble {
     background: var(--bg-assistant-message);
     color: var(--text-assistant);
-    margin-right: 20%;
+    max-width: 80%;
     border: 1px solid var(--border-chat);
-    box-shadow: var(--shadow-sm);
 }
 
 .assistant-message pre {
@@ -373,6 +386,40 @@ h3 {
     width: 100%;
     margin-top: 12px;
     border-radius: var(--radius-md);
+}
+
+/* Message Avatars */
+.message-avatar {
+    flex-shrink: 0;
+    object-fit: contain;
+    max-height: var(--max-emoji-height, none);
+}
+
+/* Calculate avatar size based on available margin */
+.user-message .message-avatar {
+    width: calc(20% * 0.8); /* 80% of the 20% margin */
+    height: auto;
+    order: 2; /* Place after the bubble */
+}
+
+.assistant-message .message-avatar {
+    width: calc(20% * 0.8); /* 80% of the 20% margin */
+    height: auto;
+    order: -1; /* Place before the bubble */
+}
+
+/* Message Content */
+.message-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-message .message-content {
+    text-align: right;
+}
+
+.assistant-message .message-content {
+    text-align: left;
 }
 
 /* Status Notifications */
@@ -619,12 +666,17 @@ button:active {
         padding: 12px 16px;
     }
     
-    .user-message {
-        margin-left: 10%;
+    .user-message .message-avatar {
+        width: calc(10% * 0.8); /* 80% of the 10% margin on mobile */
     }
     
-    .assistant-message {
-        margin-right: 10%;
+    .assistant-message .message-avatar {
+        width: calc(10% * 0.8); /* 80% of the 10% margin on mobile */
+    }
+    
+    .user-message .message-bubble,
+    .assistant-message .message-bubble {
+        max-width: 90%;
     }
     
     #userInput {
