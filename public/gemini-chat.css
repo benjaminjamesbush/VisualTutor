@@ -1,20 +1,20 @@
 /* CSS Variables for Dark Theme */
 :root {
-    --bg-primary: #374151;
-    --bg-secondary: #2d3748;
-    --bg-chat: #2d3748;
-    --bg-user-message: #1a202c;
-    --bg-assistant-message: #1a202c;
-    --bg-input: #1a202c;
-    --bg-transcription: #1a202c;
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2a2a2a;
+    --bg-chat: #2a2a2a;
+    --bg-user-message: #000000;
+    --bg-assistant-message: #000000;
+    --bg-input: #2a2a2a;
+    --bg-transcription: #2a2a2a;
     --bg-highlight: #f59e0b;
     --bg-success: #064e3b;
     --bg-error: #7f1d1d;
     --bg-info: #1e3a8a;
-    --bg-header: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    --bg-header: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
     
     --text-primary: #ffffff;
-    --text-secondary: #e2e8f0;
+    --text-secondary: #ffffff;
     --text-user: #ffffff;
     --text-assistant: #ffffff;
     --text-success: #34d399;
@@ -22,10 +22,10 @@
     --text-info: #60a5fa;
     --text-header: #ffffff;
     
-    --border-primary: #4a5568;
-    --border-secondary: #718096;
-    --border-chat: #4a5568;
-    --border-focus: #4299e1;
+    --border-primary: #ffffff;
+    --border-secondary: #ffffff;
+    --border-chat: #ffffff;
+    --border-focus: #ffffff;
     
     --bg-warning: #92400e;
     --text-warning: #fbbf24;
@@ -454,7 +454,7 @@ button {
     font-weight: 600;
     background: var(--bg-header);
     color: var(--text-header);
-    border: none;
+    border: 1px solid var(--border-primary);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
     transition: all 0.3s ease;
