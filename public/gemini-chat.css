@@ -40,6 +40,40 @@
     --radius-full: 50px;
     
     --transition: all 0.3s ease;
+}
+
+/* Day Mode (Light Theme) Variables */
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --bg-chat: #f5f5f5;
+    --bg-user-message: #ffffff;
+    --bg-assistant-message: #ffffff;
+    --bg-input: #f5f5f5;
+    --bg-transcription: #f5f5f5;
+    --bg-highlight: #f59e0b;
+    --bg-success: #d1fae5;
+    --bg-error: #fee2e2;
+    --bg-info: #dbeafe;
+    --bg-header: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+    
+    --text-primary: #000000;
+    --text-secondary: #000000;
+    --text-user: #000000;
+    --text-assistant: #000000;
+    --text-success: #065f46;
+    --text-error: #991b1b;
+    --text-info: #1e40af;
+    --text-header: #000000;
+    
+    --border-primary: #000000;
+    --border-secondary: #000000;
+    --border-chat: #000000;
+    --border-focus: #000000;
+    
+    --bg-warning: #fef3c7;
+    --text-warning: #92400e;
+}
 
 /* Base Styles */
 * {
@@ -110,6 +144,26 @@ h3 {
 }
 
 .upload-button:hover, .manage-files-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: var(--text-header);
+    padding: 8px 16px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
     background: rgba(255, 255, 255, 0.3);
     border-color: rgba(255, 255, 255, 0.5);
     transform: translateY(-2px);

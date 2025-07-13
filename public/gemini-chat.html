@@ -12,6 +12,7 @@
 <body>
     <div class="header-container">
         <h3>Chiron - Medical Tutor</h3>
+        <button onclick="toggleTheme()" class="theme-toggle" id="themeToggle">🌙 Night Mode</button>
         <button onclick="clearChat()" class="clear-button">Clear Chat</button>
         <div id="knowledgeUpload">
         <input type="file" id="fileInput" accept=".txt,.md" multiple style="display: none;">
@@ -84,6 +85,21 @@
         
         // Set dark theme as default
         document.body.setAttribute('data-theme', 'dark');
+        
+        // Theme toggle function
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const toggleButton = document.getElementById('themeToggle');
+            
+            document.body.setAttribute('data-theme', newTheme);
+            
+            if (newTheme === 'light') {
+                toggleButton.textContent = '☀️ Day Mode';
+            } else {
+                toggleButton.textContent = '🌙 Night Mode';
+            }
+        }
         
         // Transcription variables
         let ws = null;
