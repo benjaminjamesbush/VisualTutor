@@ -222,7 +222,7 @@ h3 {
 .message-bubble {
     padding: 16px 20px;
     border-radius: var(--radius-lg);
-    font-size: 16px;
+    font-size: 32px;
     line-height: 1.6;
     box-shadow: var(--shadow-sm);
 }
