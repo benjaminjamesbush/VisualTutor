@@ -34,14 +34,15 @@
         <button onclick="clearChat()">Clear Chat</button>
         </div>
         <div class="transcription-wrapper">
+            <div class="mute-controls">
+                <div style="font-size: 80px; margin-bottom: 4px; line-height: 1;">🗣️</div>
+                <input type="checkbox" id="muteCheckbox" checked>
+                <label for="muteCheckbox">Mute (Esc)</label>
+            </div>
             <div class="transcription-container">
                 <div id="liveTranscription">
                     <span class="interim">Transcription will appear here when unmuted...</span>
                 </div>
-            </div>
-            <div class="mute-controls">
-                <input type="checkbox" id="muteCheckbox" checked>
-                <label for="muteCheckbox">Mute</label>
             </div>
         </div>
     </div>
