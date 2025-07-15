@@ -2,6 +2,15 @@
   "mcpServers": {
     "context7": {
       "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx -y @upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "context7_linux_backup": {
+      "type": "stdio",
       "command": "npx",
       "args": [
         "-y",

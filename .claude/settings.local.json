@@ -1,6 +1,7 @@
 {
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "context7"
-  ],
-  "enableAllProjectMcpServers": true
+    "context7",
+    "context7_linux_backup"
+  ]
 }

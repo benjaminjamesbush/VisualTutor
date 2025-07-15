@@ -82,6 +82,9 @@
         let enterPressCount = 0;
         let isAudioPlaying = false;
         let currentAudioElement = null;
+        let transcriptionRestartTimeout = null;
+        let isConnectingWebSocket = false;
+        let isTTSScheduled = false;
         
         // Set dark theme as default
         document.body.setAttribute('data-theme', 'dark');
@@ -1027,8 +1030,10 @@
                                         
                                         // Start TTS conversion (deferred to break out of streaming context)
                                         // Minimum delay needed: 625ms (works), 562ms or less hangs
+                                        isTTSScheduled = true;
                                         setTimeout(() => {
                                             console.log('TTS: Deferred execution starting after 625ms delay...');
+                                            isTTSScheduled = false;
                                             convertTextToSpeech(textForTTS, audioElement);
                                         }, 625);
                                     } else {
@@ -1179,7 +1184,9 @@
                             console.log('TTS: Audio element for interrupted response:', audioElement);
                             
                             // Start TTS conversion (deferred to break out of streaming context)
+                            isTTSScheduled = true;
                             setTimeout(() => {
+                                isTTSScheduled = false;
                                 convertTextToSpeech(textForTTS, audioElement);
                             }, 0);
                         } else {
@@ -1263,9 +1270,26 @@
         
         // Start transcription with retry capability
         async function startTranscription(retryCount = 0) {
+            // Clear any pending restart timeout
+            if (transcriptionRestartTimeout) {
+                clearTimeout(transcriptionRestartTimeout);
+                transcriptionRestartTimeout = null;
+            }
+            
             // Prevent overlapping connections
+            if (isConnectingWebSocket) {
+                console.log('WebSocket connection already in progress, skipping...');
+                return;
+            }
+            
             if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
                 console.log('WebSocket connection already exists, skipping...');
+                return;
+            }
+            
+            // Don't start if audio is playing or TTS is scheduled
+            if (isAudioPlaying || isTTSScheduled) {
+                console.log('Cannot start transcription: Audio playing =', isAudioPlaying, ', TTS scheduled =', isTTSScheduled);
                 return;
             }
             
@@ -1290,6 +1314,7 @@
                 
                 ws.onopen = () => {
                     console.log('[STT WebSocket] Opened successfully');
+                    isConnectingWebSocket = false;
                     showStatus('Connected to transcription server', 'success');
                     
                     // Send configuration to start Deepgram connection
@@ -1328,6 +1353,7 @@
                 ws.onerror = (error) => {
                     console.error('[STT WebSocket] Error:', error);
                     console.error('[STT WebSocket] State on error:', ws.readyState);
+                    isConnectingWebSocket = false;
                     
                     // Retry with exponential backoff
                     if (retryCount < 3) {
@@ -1361,6 +1387,7 @@
                     // Clean up WebSocket reference
                     ws = null;
                     isTranscribing = false;
+                    isConnectingWebSocket = false;
                     
                     if (event.code === 1006 && retryCount < 3) {
                         console.error('Abnormal closure - attempting retry');
@@ -1382,10 +1409,12 @@
                 
                 // Update state
                 isTranscribing = true;
+                isConnectingWebSocket = true;
                 
             } catch (error) {
                 console.error('Failed to start transcription:', error);
                 showStatus(`Failed to start transcription: ${error.message}`, 'error');
+                isConnectingWebSocket = false;
                 stopTranscription();
             }
         }
@@ -1437,6 +1466,12 @@
         // Stop transcription
         function stopTranscription() {
             console.log('Stopping transcription...');
+            
+            // Clear any pending restart timeout
+            if (transcriptionRestartTimeout) {
+                clearTimeout(transcriptionRestartTimeout);
+                transcriptionRestartTimeout = null;
+            }
             
             // Stop microphone
             if (microphone && microphone.state !== 'inactive') {
@@ -1543,6 +1578,12 @@
             console.log('Text length:', text.length);
             console.log('First 100 chars:', text.substring(0, 100));
             console.log('Audio element:', audioElement);
+            
+            // Stop any active transcription when TTS starts
+            if (isTranscribing) {
+                console.log('Stopping transcription for TTS playback');
+                stopTranscription();
+            }
             
             const DEFAULT_VOICE_ID = "raMcNf2S8wCmuaBcyI6E";
             
@@ -1761,12 +1802,19 @@
                 userInput.placeholder = 'Type your message... (press Enter 3 times to send)';
                 userInput.focus();
                 
-                // Restart transcription if unmuted
-                if (!muteCheckbox.checked) {
+                // Restart transcription if unmuted and TTS is not scheduled
+                if (!muteCheckbox.checked && !isTTSScheduled) {
+                    // Clear any existing timeout to prevent multiple calls
+                    if (transcriptionRestartTimeout) {
+                        clearTimeout(transcriptionRestartTimeout);
+                        transcriptionRestartTimeout = null;
+                    }
+                    
                     console.log('Restarting transcription after audio/stream ends');
                     // Add longer delay to allow server cleanup
-                    setTimeout(() => {
+                    transcriptionRestartTimeout = setTimeout(() => {
                         console.log('Starting transcription after delay');
+                        transcriptionRestartTimeout = null;
                         startTranscription();
                     }, 1000);
                 }
