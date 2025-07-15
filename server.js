@@ -121,7 +121,7 @@ app.post('/api/text-to-speech', async (req, res) => {
           similarity_boost: 0.7,
           style: 0.8,
           use_speaker_boost: true,
-          speed: 1.15
+          speed: 1.2  // Maximum speed per ElevenLabs docs
         },
         generation_config: {
           chunk_length_schedule: [120, 160, 250, 400] // Manual chunking schedule
