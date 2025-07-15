@@ -42,7 +42,7 @@
             <div class="mute-controls">
                 <div style="font-size: 80px; margin-bottom: 4px; line-height: 1;">🗣️</div>
                 <input type="checkbox" id="muteCheckbox" checked>
-                <label for="muteCheckbox">Mute (Esc)</label>
+                <label for="muteCheckbox">Mute</label>
             </div>
             <div class="transcription-container">
                 <div id="liveTranscription">
@@ -408,19 +408,8 @@
                         currentAudioElement.currentTime = 0;
                         isAudioPlaying = false;
                         currentAudioElement = null;
-                        // Enable input after interruption
-                        enableUserInput();
-                    }
-                } else if (isAudioPlaying) {
-                    // Stop audio playback if Enter is pressed while audio is playing
-                    e.preventDefault();
-                    if (currentAudioElement) {
-                        currentAudioElement.pause();
-                        currentAudioElement.currentTime = 0;
-                        isAudioPlaying = false;
-                        currentAudioElement = null;
-                        // Enable input after interruption
-                        enableUserInput();
+                        // Handle audio playback end after interruption
+                        handleAudioPlaybackEnd();
                     }
                 } else if (document.activeElement === userInput) {
                     e.preventDefault();
@@ -442,6 +431,14 @@
                     
                     if (enterPressCount === 3) {
                         // Submit on third Enter press
+                        // If audio is playing, stop it first
+                        if (isAudioPlaying && currentAudioElement) {
+                            currentAudioElement.pause();
+                            currentAudioElement.currentTime = 0;
+                            isAudioPlaying = false;
+                            currentAudioElement = null;
+                            handleAudioPlaybackEnd();
+                        }
                         sendMessage();
                         enterPressCount = 0;
                     } else {
@@ -456,21 +453,20 @@
                     }
                 }
             } else if (e.key === 'Escape') {
-                // If audio is playing, stop it
+                e.preventDefault();
+                // Stop audio if playing
                 if (isAudioPlaying && currentAudioElement) {
-                    e.preventDefault();
                     currentAudioElement.pause();
                     currentAudioElement.currentTime = 0;
                     isAudioPlaying = false;
                     currentAudioElement = null;
-                    // Enable input after interruption
-                    enableUserInput();
-                } else {
-                    // Otherwise toggle mute checkbox
-                    e.preventDefault();
-                    muteCheckbox.checked = !muteCheckbox.checked;
-                    // Trigger change event to call handleMuteChange
-                    muteCheckbox.dispatchEvent(new Event('change'));
+                    // Handle audio playback end after interruption
+                    handleAudioPlaybackEnd();
+                }
+                // Also interrupt streaming if in progress
+                if (isStreaming && currentAbortController) {
+                    currentAbortController.abort();
+                    enterPressCount = 0;
                 }
             } else {
                 // Reset counter on any non-Enter key
@@ -816,9 +812,8 @@
             
             // Disable input during streaming
             isStreaming = true;
-            userInput.disabled = true;
+            disableInputDuringStreaming();
             userInput.value = '';
-            userInput.placeholder = 'Press Enter to interrupt...';
             
             // Clear transcription
             clearTranscription();
@@ -874,8 +869,8 @@
                 console.log('Audio started playing');
                 isAudioPlaying = true;
                 currentAudioElement = audioElement;
-                // Disable user input while audio is playing
-                disableUserInput();
+                // Handle audio playback start
+                handleAudioPlaybackStart();
                 // Scroll to bottom when audio starts playing
                 scrollToBottom();
             });
@@ -886,8 +881,8 @@
                 if (currentAudioElement === audioElement) {
                     currentAudioElement = null;
                 }
-                // Enable user input when audio stops
-                enableUserInput();
+                // Handle audio playback end
+                handleAudioPlaybackEnd();
             });
             
             audioElement.addEventListener('ended', () => {
@@ -896,8 +891,8 @@
                 if (currentAudioElement === audioElement) {
                     currentAudioElement = null;
                 }
-                // Enable user input when audio ends
-                enableUserInput();
+                // Handle audio playback end
+                handleAudioPlaybackEnd();
             });
             
             assistantContentDiv.appendChild(audioElement);
@@ -1236,10 +1231,8 @@
                 currentAbortController = null;
                 enterPressCount = 0;
                 
-                // Only enable input if audio is not playing
-                if (!isAudioPlaying) {
-                    enableUserInput();
-                }
+                // Re-enable input after streaming
+                enableInputAfterStreaming();
             }
         }
         
@@ -1785,20 +1778,19 @@
         }
         
         // Handle page unload
-        // Helper function to disable user input
-        function disableUserInput() {
-            userInput.disabled = true;
-            userInput.placeholder = 'Audio playing... Press Enter or Escape to interrupt';
+        // Helper function to handle audio playback start
+        function handleAudioPlaybackStart() {
+            // Don't disable typing, just update placeholder
+            userInput.placeholder = 'Type your message (voice disabled during playback)... Press Esc to stop audio';
             // Stop transcription if running
             if (isTranscribing) {
                 stopTranscription();
             }
         }
         
-        // Helper function to enable user input
-        function enableUserInput() {
+        // Helper function to handle audio playback end
+        function handleAudioPlaybackEnd() {
             if (!isStreaming && !isAudioPlaying) {
-                userInput.disabled = false;
                 userInput.placeholder = 'Type your message... (press Enter 3 times to send)';
                 userInput.focus();
                 
@@ -1817,6 +1809,25 @@
                         transcriptionRestartTimeout = null;
                         startTranscription();
                     }, 1000);
+                }
+            }
+        }
+        
+        // Helper function to disable text input during streaming
+        function disableInputDuringStreaming() {
+            userInput.disabled = true;
+            userInput.placeholder = 'Press Enter to interrupt...';
+        }
+        
+        // Helper function to enable text input after streaming
+        function enableInputAfterStreaming() {
+            if (!isStreaming) {
+                userInput.disabled = false;
+                // Call the audio handler to set proper state
+                if (isAudioPlaying) {
+                    handleAudioPlaybackStart();
+                } else {
+                    handleAudioPlaybackEnd();
                 }
             }
         }
