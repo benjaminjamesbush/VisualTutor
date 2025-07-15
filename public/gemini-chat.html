@@ -535,16 +535,19 @@
             
             if (role === 'user') {
                 // Check if content has both typed and transcribed parts
-                const transcribedMatch = content.match(/^Transcribed: (.+)$/);
-                const typedMatch = content.match(/^Typed: (.+)$/);
-                const combinedMatch = content.match(/^Typed: (.+)\nTranscribed: (.+)$/);
+                const hasTyped = content.includes('Typed: ');
+                const hasTranscribed = content.includes('Transcribed: ');
                 
-                if (combinedMatch) {
+                if (hasTyped && hasTranscribed) {
                     // Both typed and transcribed content
-                    const typedPart = combinedMatch[1];
-                    const transcribedPart = combinedMatch[2];
+                    const parts = content.split('\n');
+                    const typedLine = parts.find(line => line.startsWith('Typed: '));
+                    const transcribedLine = parts.find(line => line.startsWith('Transcribed: '));
+                    const typedPart = typedLine ? typedLine.replace('Typed: ', '') : '';
+                    const transcribedPart = transcribedLine ? transcribedLine.replace('Transcribed: ', '') : '';
+                
                     
-                    // Create typed section
+                    // Create typed section first
                     const typedDiv = document.createElement('div');
                     const typedLabel = document.createElement('strong');
                     typedLabel.textContent = 'Typed';
@@ -556,10 +559,11 @@
                     // Add horizontal line
                     const hr = document.createElement('hr');
                     hr.style.margin = '10px 0';
-                    hr.style.borderTop = '1px solid #ddd';
+                    hr.style.border = 'none';
+                    hr.style.borderTop = '1px solid #ccc';
                     contentDiv.appendChild(hr);
                     
-                    // Create transcribed section
+                    // Create transcribed section below
                     const transcribedDiv = document.createElement('div');
                     const transcribedLabel = document.createElement('strong');
                     transcribedLabel.textContent = 'Transcribed';
@@ -567,17 +571,17 @@
                     transcribedDiv.appendChild(document.createElement('br'));
                     transcribedDiv.appendChild(document.createTextNode(transcribedPart));
                     contentDiv.appendChild(transcribedDiv);
-                } else if (transcribedMatch) {
+                } else if (hasTranscribed && !hasTyped) {
                     // Only transcribed content
-                    const transcribedPart = transcribedMatch[1];
+                    const transcribedPart = content.replace('Transcribed: ', '');
                     const transcribedLabel = document.createElement('strong');
                     transcribedLabel.textContent = 'Transcribed';
                     contentDiv.appendChild(transcribedLabel);
                     contentDiv.appendChild(document.createElement('br'));
                     contentDiv.appendChild(document.createTextNode(transcribedPart));
-                } else if (typedMatch) {
+                } else if (hasTyped && !hasTranscribed) {
                     // Only typed content  
-                    const typedPart = typedMatch[1];
+                    const typedPart = content.replace('Typed: ', '');
                     const typedLabel = document.createElement('strong');
                     typedLabel.textContent = 'Typed';
                     contentDiv.appendChild(typedLabel);
